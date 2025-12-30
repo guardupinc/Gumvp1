@@ -7,13 +7,27 @@ import { Metrics } from '../pages/Metrics';
 import { WorkforceManagement } from '../pages/WorkforceManagement';
 import { Vault } from '../pages/Vault';
 import { Settings } from '../pages/Settings';
+import { LiveOperations } from '../pages/LiveOperations';
+
+// Placeholder components for new pages
+const Reports = () => <div className="page-container"><h1>Reports</h1><p>Coming soon...</p></div>;
+const HR = () => <div className="page-container"><h1>HR</h1><p>Coming soon...</p></div>;
+const Billing = () => <div className="page-container"><h1>Billing</h1><p>Coming soon...</p></div>;
+const GuardCard = () => <div className="page-container"><h1>Guard Card</h1><p>Coming soon...</p></div>;
+const GuardNexus = () => <div className="page-container"><h1>Guard Nexus</h1><p>Coming soon...</p></div>;
 
 export type AdminPageId = 
   | 'dashboard' 
   | 'scheduling' 
+  | 'operations'
+  | 'reports'
   | 'metrics' 
-  | 'workforce-management' 
-  | 'vault' 
+  | 'workforce-management'
+  | 'hr'
+  | 'billing'
+  | 'vault'
+  | 'guard-card'
+  | 'guard-nexus'
   | 'settings';
 
 interface AdminPortalProps {
@@ -63,12 +77,24 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
         return <Dashboard />;
       case 'scheduling':
         return <Scheduling />;
+      case 'operations':
+        return <LiveOperations />;
+      case 'reports':
+        return <Reports />;
       case 'metrics':
         return <Metrics />;
       case 'workforce-management':
         return <WorkforceManagement />;
+      case 'hr':
+        return <HR />;
+      case 'billing':
+        return <Billing />;
       case 'vault':
         return <Vault />;
+      case 'guard-card':
+        return <GuardCard />;
+      case 'guard-nexus':
+        return <GuardNexus />;
       case 'settings':
         return <Settings />;
       default:
@@ -85,6 +111,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
         open={sidebarOpen}
         onClose={handleCloseSidebar}
         onLogout={onLogout}
+        onToggle={handleToggleSidebar}
       />
       <div className={`main-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
         <TopBar

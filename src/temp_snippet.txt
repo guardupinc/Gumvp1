@@ -1,0 +1,9 @@
+                          {doc.status === 'missing' ? (
+                            <button 
+                              className="button-outline-small" 
+                              style={{ fontSize: '12px', padding: '6px 12px' }}
+                              onClick={() => handleRequestUpload(doc.id)}
+                            >
+                              Request Upload
+                            </button>
+                          ) : (
