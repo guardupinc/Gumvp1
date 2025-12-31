@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Users, Calendar as CalendarIcon, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Users, Calendar as CalendarIcon, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, FileText, Banknote, Shield, Check, Eye, MoreHorizontal } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { KPICard } from '../ui/KPICard';
@@ -8,6 +8,7 @@ import { ShiftCalendar } from '../ui/ShiftCalendar';
 import { AddShiftModal, ShiftFormData } from '../modals/AddShiftModal';
 import { QuickActionModal } from '../modals/QuickActionModal';
 import { ReviewReportModal } from '../modals/ReviewReportModal';
+import { DailyOperationsTimeline, generateTodayOperations } from '../widgets/DailyOperationsTimeline';
 import '../../modals.css';
 
 interface Report {
@@ -28,19 +29,30 @@ interface DashboardProps {
   onNavigateToPendingReports?: () => void;
 }
 
+interface RecentActivity {
+  id: number;
+  type: string;
+  description: string;
+  user: string;
+  timestamp: string;
+  status: string;
+}
+
+interface PendingReport {
+  id: number;
+  type: string;
+  title: string;
+  submittedBy: string;
+  submittedDate: string;
+  priority: string;
+}
+
 const recentActivities: RecentActivity[] = [
   { id: 1, type: 'Shift', description: 'Night shift assigned to Building A', user: 'John Smith', timestamp: '10 min ago', status: 'success' },
   { id: 2, type: 'Incident', description: 'Minor security breach reported', user: 'Maria Garcia', timestamp: '1 hour ago', status: 'warning' },
   { id: 3, type: 'License', description: 'Security license renewed', user: 'David Lee', timestamp: '2 hours ago', status: 'success' },
   { id: 4, type: 'Audit', description: 'Compliance report generated', user: 'Sarah Chen', timestamp: '3 hours ago', status: 'success' },
   { id: 5, type: 'Document', description: 'SOP document uploaded', user: 'Robert Brown', timestamp: '5 hours ago', status: 'success' },
-];
-
-const pendingReports: PendingReport[] = [
-  { id: 1, type: 'Incident', title: 'Unauthorized Access Attempt - Building A', submittedBy: 'John Smith', submittedDate: 'Dec 22, 2024', priority: 'high' },
-  { id: 2, type: 'Daily', title: 'Night Shift Summary - Dec 21', submittedBy: 'Maria Garcia', submittedDate: 'Dec 21, 2024', priority: 'medium' },
-  { id: 3, type: 'Maintenance', title: 'Camera Malfunction Report', submittedBy: 'David Lee', submittedDate: 'Dec 20, 2024', priority: 'medium' },
-  { id: 4, type: 'Visitor', title: 'After Hours Visitor Log', submittedBy: 'Sarah Chen', submittedDate: 'Dec 20, 2024', priority: 'low' },
 ];
 
 const activityColumns: Column<RecentActivity>[] = [
@@ -111,6 +123,41 @@ const reportColumns: Column<PendingReport>[] = [
     ),
     width: '100px',
   },
+  {
+    key: 'actions',
+    header: 'Actions',
+    render: (row, isHovered) => (
+      <div className="table-actions">
+        {isHovered ? (
+          <>
+            <button 
+              className="action-button action-approve"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('Quick approve:', row.id);
+              }}
+              title="Approve"
+            >
+              <Check size={16} />
+            </button>
+            <button 
+              className="action-button action-view"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('View report:', row.id);
+              }}
+              title="View Details"
+            >
+              <Eye size={16} />
+            </button>
+          </>
+        ) : (
+          <MoreHorizontal size={16} className="action-more" />
+        )}
+      </div>
+    ),
+    width: '120px',
+  },
 ];
 
 // Generate sample shift data
@@ -168,10 +215,23 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
   const [selectedReport, setSelectedReport] = useState<PendingReport | null>(null);
   const [addShiftPrefilledDate, setAddShiftPrefilledDate] = useState<Date | undefined>();
   const [addShiftPrefilledTimeSlot, setAddShiftPrefilledTimeSlot] = useState<string | undefined>();
+  const todayOperations = generateTodayOperations();
   
   const [isAddShiftModalOpen, setAddShiftModalOpen] = useState(false);
   const [isQuickActionModalOpen, setQuickActionModalOpen] = useState(false);
   const [isReviewReportModalOpen, setReviewReportModalOpen] = useState(false);
+
+  // Transform Report data to PendingReport format
+  const pendingReportsData: PendingReport[] = reports
+    .filter(r => r.status === 'pending')
+    .map(r => ({
+      id: r.id,
+      type: r.type === 'DAR' ? 'Daily' : r.type,
+      title: `${r.content.substring(0, 50)}... - ${r.site}`,
+      submittedBy: r.guardName,
+      submittedDate: r.timestamp.split('•')[0].trim(),
+      priority: r.priority
+    }));
 
   // Calculate pending reports count from live data
   const pendingCount = reports.filter(r => r.status === 'pending').length;
@@ -187,7 +247,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
   };
 
   const handleReviewReport = (reportId: number) => {
-    const report = pendingReports.find(r => r.id === reportId);
+    const report = pendingReportsData.find(r => r.id === reportId);
     if (report) {
       setSelectedReport(report);
       setReviewReportModalOpen(true);
@@ -259,19 +319,18 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
         />
       </div>
 
-      {/* Weekly Shift Schedule Section */}
+      {/* Daily Operations Timeline Section */}
       <div className="dashboard-full-width">
-        <Card className="shift-calendar-card">
-          <div className="card-header">
-            <h3>Weekly Shift Schedule</h3>
-            <button className="button-link">View Full Schedule</button>
-          </div>
-          <ShiftCalendar 
-            shifts={shifts}
-            onShiftClick={handleShiftClick}
-            onAddShift={handleAddShift}
-          />
-        </Card>
+        <DailyOperationsTimeline 
+          operations={todayOperations}
+          onAssignGuard={(operationId) => {
+            console.log('Assign guard to operation:', operationId);
+            setAddShiftModalOpen(true);
+          }}
+          onViewFullSchedule={() => {
+            console.log('View full schedule clicked');
+          }}
+        />
       </div>
 
       {/* Reports Pending Review Section */}
@@ -287,7 +346,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
         </div>
         <Table 
           columns={reportColumns} 
-          data={pendingReports}
+          data={pendingReportsData}
           onRowClick={(row) => handleReviewReport(row.id)}
         />
       </Card>
@@ -309,25 +368,31 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
               <h3>Important Alerts</h3>
             </div>
             <div className="alerts-list">
-              <div className="alert-item warning">
+              {/* Card 1: Financial Risk - Overtime */}
+              <div className="alert-item alert-financial">
+                <Banknote size={20} />
+                <div className="alert-content">
+                  <p className="alert-title">Overtime Risk Detected</p>
+                  <p className="alert-description">3 guards are approaching 40 hours this week.</p>
+                  <button className="alert-link">View Roster</button>
+                </div>
+              </div>
+
+              {/* Card 2: Compliance - License Expiring */}
+              <div className="alert-item alert-critical">
                 <AlertTriangle size={20} />
                 <div className="alert-content">
                   <p className="alert-title">License Expiring Soon</p>
-                  <p className="alert-description">3 guards have licenses expiring in 7 days</p>
+                  <p className="alert-description">John Smith's Guard Card expires in 3 days.</p>
                 </div>
               </div>
-              <div className="alert-item info">
-                <TrendingUp size={20} />
+
+              {/* Card 3: Operations - Coverage */}
+              <div className="alert-item alert-operational">
+                <Shield size={20} />
                 <div className="alert-content">
                   <p className="alert-title">Shift Coverage Needed</p>
-                  <p className="alert-description">2 shifts require guard assignment</p>
-                </div>
-              </div>
-              <div className="alert-item success">
-                <CheckCircle size={20} />
-                <div className="alert-content">
-                  <p className="alert-title">Audit Report Ready</p>
-                  <p className="alert-description">Q4 compliance report available for review</p>
+                  <p className="alert-description">2 shifts tomorrow are unassigned.</p>
                 </div>
               </div>
             </div>
