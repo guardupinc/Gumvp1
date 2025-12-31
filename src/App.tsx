@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AdminPortal } from './components/admin-portal/AdminPortal';
 import { GuardPortal } from './components/guard-portal/GuardPortal';
 import { Shield, User, Building2, Lock } from 'lucide-react';
+import { Toaster } from './components/ui/sonner';
 import './portal-selector.css';
 
 // User role types - in production, these would come from your authentication backend
@@ -98,6 +99,7 @@ export default function App() {
   // Route to appropriate portal based on authenticated role
   return (
     <>
+      <Toaster />
       {userRole === 'SECURITY_ADMIN' && <AdminPortal onLogout={handleLogout} />}
       {userRole === 'GUARD' && <GuardPortal onLogout={handleLogout} />}
       {userRole === 'COMPANY_ADMIN' && (

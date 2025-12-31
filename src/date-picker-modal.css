@@ -1,0 +1,229 @@
+/* Date Picker Modal Styles */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.date-picker-modal {
+  background: #1a1f2e;
+  border: 1px solid #2a3142;
+  border-radius: 12px;
+  width: 560px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.modal-header h3 {
+  color: #FFFFFF;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.modal-close-btn:hover {
+  background: #2a3142;
+  color: #FFFFFF;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.date-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.date-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.date-input-group label {
+  color: #9CA3AF;
+  font-size: 14px;
+}
+
+.date-input {
+  background: #0B1220;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #FFFFFF;
+  font-size: 14px;
+  cursor: default;
+}
+
+.date-input::placeholder {
+  color: #6B7280;
+}
+
+.calendar-container {
+  background: #0B1220;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.calendar-header h4 {
+  color: #FFFFFF;
+  margin: 0;
+}
+
+.calendar-nav-btn {
+  background: transparent;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+  background: #1F2937;
+  border-color: #4B5563;
+  color: #FFFFFF;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  color: #6B7280;
+  font-size: 12px;
+  padding: 8px 0;
+  font-weight: 500;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.calendar-day.empty {
+  cursor: default;
+}
+
+.calendar-day:not(.empty):hover {
+  background: #1F2937;
+}
+
+.calendar-day.in-range {
+  background: rgba(59, 209, 111, 0.15);
+  color: #3BD16F;
+}
+
+.calendar-day.start-date,
+.calendar-day.end-date {
+  background: #3BD16F;
+  color: #0B1220;
+  font-weight: 600;
+}
+
+.calendar-day.start-date:hover,
+.calendar-day.end-date:hover {
+  background: #2fb85f;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #2a3142;
+}
+
+.cancel-btn {
+  background: transparent;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 10px 20px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+  background: #1F2937;
+  border-color: #4B5563;
+  color: #FFFFFF;
+}
+
+.apply-range-btn {
+  background: #3BD16F;
+  border: none;
+  border-radius: 6px;
+  color: #0B1220;
+  cursor: pointer;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.apply-range-btn:hover {
+  background: #2fb85f;
+}
+
+.apply-range-btn:disabled {
+  background: #374151;
+  color: #6B7280;
+  cursor: not-allowed;
+}

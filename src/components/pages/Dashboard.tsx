@@ -10,22 +10,22 @@ import { QuickActionModal } from '../modals/QuickActionModal';
 import { ReviewReportModal } from '../modals/ReviewReportModal';
 import '../../modals.css';
 
-interface RecentActivity {
+interface Report {
   id: number;
-  type: string;
-  description: string;
-  user: string;
+  referenceId: string;
+  type: 'DAR' | 'Incident';
+  priority: 'normal' | 'high';
+  guardName: string;
+  site: string;
   timestamp: string;
-  status: 'success' | 'warning' | 'error';
+  content: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionNote?: string;
 }
 
-interface PendingReport {
-  id: number;
-  type: string;
-  title: string;
-  submittedBy: string;
-  submittedDate: string;
-  priority: 'high' | 'medium' | 'low';
+interface DashboardProps {
+  reports?: Report[];
+  onNavigateToPendingReports?: () => void;
 }
 
 const recentActivities: RecentActivity[] = [
@@ -163,7 +163,7 @@ const generateShiftData = () => {
   return shifts;
 };
 
-export function Dashboard() {
+export function Dashboard({ reports = [], onNavigateToPendingReports }: DashboardProps) {
   const shifts = generateShiftData();
   const [selectedReport, setSelectedReport] = useState<PendingReport | null>(null);
   const [addShiftPrefilledDate, setAddShiftPrefilledDate] = useState<Date | undefined>();
@@ -172,6 +172,9 @@ export function Dashboard() {
   const [isAddShiftModalOpen, setAddShiftModalOpen] = useState(false);
   const [isQuickActionModalOpen, setQuickActionModalOpen] = useState(false);
   const [isReviewReportModalOpen, setReviewReportModalOpen] = useState(false);
+
+  // Calculate pending reports count from live data
+  const pendingCount = reports.filter(r => r.status === 'pending').length;
 
   const handleShiftClick = (shift: any) => {
     console.log('Shift clicked:', shift);
@@ -243,9 +246,10 @@ export function Dashboard() {
         />
         <KPICard
           title="Pending Reports"
-          value="4"
+          value={pendingCount}
           change={{ value: 'Awaiting review', trend: 'neutral' }}
           icon={<FileText size={20} />}
+          onClick={onNavigateToPendingReports}
         />
         <KPICard
           title="Compliance Rate"

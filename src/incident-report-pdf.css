@@ -1,0 +1,731 @@
+/* PDF Container - Scrollable wrapper */
+.pdf-container {
+  width: 100%;
+  height: 100vh;
+  background-color: #525659;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+/* A4 Page - 595 x 842 pixels (72 DPI) */
+.pdf-page {
+  width: 595px;
+  min-height: 842px;
+  background-color: #FFFFFF;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  padding: 50px 45px;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  position: relative;
+}
+
+/* Header Section */
+.pdf-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.pdf-logo-placeholder {
+  width: 120px;
+  height: 80px;
+}
+
+.logo-box {
+  width: 100%;
+  height: 100%;
+  border: 2px solid #D1D5DB;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #F9FAFB;
+  gap: 4px;
+}
+
+.logo-box span {
+  color: #9CA3AF;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.pdf-title-block {
+  text-align: right;
+  flex: 1;
+  margin-left: 20px;
+}
+
+.pdf-report-title {
+  color: #111827;
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.pdf-client-name {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.pdf-generated-date {
+  color: #6B7280;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* Separator Line */
+.pdf-separator {
+  width: 100%;
+  height: 1px;
+  background-color: #D1D5DB;
+  margin-bottom: 30px;
+}
+
+/* Section Styling */
+.pdf-section {
+  margin-bottom: 28px;
+}
+
+.pdf-section-title {
+  color: #1F2937;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin: 0 0 14px 0;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #E5E7EB;
+}
+
+/* The Facts Grid - 2x2 */
+.pdf-facts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fact-item {
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fact-label {
+  background-color: #F3F4F6;
+  color: #4B5563;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #D1D5DB;
+}
+
+.fact-value {
+  background-color: #FFFFFF;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+
+.fact-value-team {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+.fact-value-team div {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Narrative Section */
+.pdf-narrative {
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.8;
+  font-weight: 400;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  text-align: justify;
+  background-color: #FAFAFA;
+  padding: 18px;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  hyphens: auto;
+}
+
+/* Evidence Grid */
+.pdf-evidence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.pdf-evidence-item {
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #FAFAFA;
+}
+
+.pdf-evidence-item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+  border-bottom: 1px solid #D1D5DB;
+}
+
+.pdf-evidence-caption {
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px;
+  margin: 0;
+  background-color: #FFFFFF;
+}
+
+/* Checklist Section */
+.pdf-checklist-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Checklist Item */
+.checklist-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.checklist-icon {
+  width: 22px;
+  height: 22px;
+  background-color: #10B981;
+  color: #FFFFFF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.checklist-icon-warning {
+  background-color: #F59E0B;
+  font-size: 15px;
+}
+
+.checklist-content {
+  flex: 1;
+}
+
+.checklist-task {
+  color: #1F2937;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 2px;
+}
+
+.checklist-detail {
+  color: #6B7280;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.checklist-detail-warning {
+  color: #D97706;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* Incident Block */
+.incident-block {
+  background-color: #FEF3F2;
+  border: 1px solid #FEE2E2;
+  border-left: 4px solid #EF4444;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.incident-title {
+  color: #991B1B;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.incident-meta {
+  color: #4B5563;
+  font-size: 12px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.incident-meta-item {
+  display: inline;
+}
+
+.incident-meta-divider {
+  margin: 0 8px;
+  color: #D1D5DB;
+}
+
+.incident-summary {
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.incident-evidence {
+  margin-top: 14px;
+}
+
+.evidence-label {
+  color: #4B5563;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.incident-evidence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.incident-evidence-item {
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #FFFFFF;
+}
+
+.incident-evidence-item img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+.incident-evidence-caption {
+  color: #6B7280;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px;
+  margin: 0;
+  background-color: #F9FAFB;
+  border-top: 1px solid #E5E7EB;
+}
+
+/* Clean Sheet Block - Green Success Summary */
+.clean-sheet-block {
+  background-color: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-left: 4px solid #22C55E;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.clean-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.clean-sheet-icon {
+  color: #22C55E;
+  flex-shrink: 0;
+}
+
+.clean-sheet-title {
+  color: #166534;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.clean-sheet-content {
+  color: #166534;
+  font-size: 13px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* Maintenance Block - Yellow Warning Alert */
+.maintenance-block {
+  background-color: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-left: 4px solid #F59E0B;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.maintenance-title {
+  color: #92400E;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.maintenance-meta {
+  color: #4B5563;
+  font-size: 12px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.maintenance-meta-item {
+  display: inline;
+}
+
+.maintenance-meta-divider {
+  margin: 0 8px;
+  color: #D1D5DB;
+}
+
+.maintenance-summary {
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+/* Footer */
+.pdf-footer {
+  margin-top: auto;
+  padding-top: 30px;
+  text-align: center;
+  border-top: 1px solid #E5E7EB;
+}
+
+.pdf-footer p {
+  color: #9CA3AF;
+  font-size: 10px;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+/* Signature Footer - Banking Contract Style */
+.signature-footer {
+  margin-top: auto;
+  margin-left: -45px;
+  margin-right: -45px;
+  margin-bottom: -50px;
+  background-color: #F9FAFB;
+  border-top: 2px solid #D1D5DB;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 32px 0;
+}
+
+.signature-column {
+  padding: 0 45px;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signature-column:last-child {
+  border-right: none;
+}
+
+.signature-role-title {
+  color: #6B7280;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  line-height: 1;
+}
+
+.signature-printed-name {
+  color: #111827;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  margin: 0;
+}
+
+.signature-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.signature-badge-icon {
+  flex-shrink: 0;
+}
+
+.signature-badge-green {
+  color: #10B981;
+}
+
+.signature-badge-blue {
+  color: #3B82F6;
+}
+
+/* Chain of Custody Bar */
+.chain-of-custody-bar {
+  margin-top: auto;
+  margin-left: -45px;
+  margin-right: -45px;
+  margin-bottom: -50px;
+  background-color: #F3F4F6;
+  border-top: 1px solid #D1D5DB;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 16px 0;
+}
+
+.custody-column {
+  padding: 0 24px;
+  border-right: 1px solid #D1D5DB;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custody-column:last-child {
+  border-right: none;
+}
+
+.custody-label {
+  color: #4B5563;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.custody-data {
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.custody-meta {
+  color: #6B7280;
+  font-size: 9px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.custody-icon {
+  color: #6B7280;
+  flex-shrink: 0;
+}
+
+/* Remove unused custody column alignment classes */
+.custody-column-center {
+  display: none;
+}
+
+.custody-column-right {
+  display: none;
+}
+
+.custody-qr-row {
+  display: none;
+}
+
+.custody-qr-code {
+  display: none;
+}
+
+.qr-box-small {
+  display: none;
+}
+
+.custody-qr-text {
+  display: none;
+}
+
+/* Digital Certificate Section - REMOVED */
+.digital-certificate-section {
+  display: none;
+}
+
+.certificate-heading {
+  display: none;
+}
+
+.certificate-grid {
+  display: none;
+}
+
+.certificate-block {
+  display: none;
+}
+
+.certificate-label {
+  display: none;
+}
+
+.certificate-name {
+  display: none;
+}
+
+.certificate-verification {
+  display: none;
+}
+
+.verification-icon {
+  display: none;
+}
+
+.verification-icon-green {
+  display: none;
+}
+
+.verification-icon-blue {
+  display: none;
+}
+
+.verification-content {
+  display: none;
+}
+
+.verification-text {
+  display: none;
+}
+
+.verification-meta {
+  display: none;
+}
+
+.certificate-timestamp {
+  display: none;
+}
+
+.qr-verification {
+  display: none;
+}
+
+.qr-code-placeholder {
+  display: none;
+}
+
+.qr-box {
+  display: none;
+}
+
+.qr-text {
+  display: none;
+}
+
+/* Signatures & Validation Section - REMOVED/REPLACED */
+.pdf-signatures-section {
+  display: none;
+}
+
+.signatures-heading {
+  display: none;
+}
+
+.signatures-grid {
+  display: none;
+}
+
+.signature-block {
+  display: none;
+}
+
+.signature-label {
+  display: none;
+}
+
+.signature-name {
+  display: none;
+}
+
+.signature-script {
+  display: none;
+}
+
+.signature-line {
+  display: none;
+}
+
+.verified-badge {
+  display: none;
+}
+
+.signature-timestamp {
+  display: none;
+}
+
+/* Print Styles */
+@media print {
+  .pdf-container {
+    background-color: white;
+    padding: 0;
+  }
+
+  .pdf-page {
+    box-shadow: none;
+    width: 100%;
+    height: auto;
+    padding: 0.5in 0.75in;
+  }
+}
+
+/* Scrollbar for container */
+.pdf-container::-webkit-scrollbar {
+  width: 12px;
+}
+
+.pdf-container::-webkit-scrollbar-track {
+  background: #3E4347;
+}
+
+.pdf-container::-webkit-scrollbar-thumb {
+  background: #6B7280;
+  border-radius: 6px;
+}
+
+.pdf-container::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}

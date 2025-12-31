@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, AlertTriangle, Shield, Send } from 'lucide-react';
+import { Users, AlertTriangle, Shield, Send, FileText, Eye } from 'lucide-react';
+import { BroadcastAlertModal } from '../modals/BroadcastAlertModal';
+import { SiteLogsDrawer } from '../drawers/SiteLogsDrawer';
+import { toast } from 'sonner@2.0.3';
+import '../../styles/drawer.css';
 
 interface SiteCard {
   id: number;
@@ -8,13 +12,20 @@ interface SiteCard {
   statusText: string;
   activeGuards: number;
   guards: { id: number; name: string; initials: string }[];
+  shiftProgress: number; // 0-100 percentage
+  shiftStatusText: string; // e.g., "Shift ending in 1h"
+  taskMetrics: {
+    patrolsCompleted: number;
+    patrolsTotal: number;
+    reportsDrafted: number;
+  };
 }
 
 interface ActivityEvent {
   id: number;
   message: string;
   timestamp: string;
-  severity: 'success' | 'warning' | 'critical';
+  severity: 'success' | 'warning' | 'critical' | 'broadcast';
 }
 
 const siteData: SiteCard[] = [
@@ -23,11 +34,21 @@ const siteData: SiteCard[] = [
     name: 'Building B',
     status: 'critical',
     statusText: 'CRITICAL - SOS Triggered',
-    activeGuards: 2,
+    activeGuards: 5,
     guards: [
       { id: 2, name: 'Maria Garcia', initials: 'MG' },
-      { id: 5, name: 'Robert Brown', initials: 'RB' }
-    ]
+      { id: 5, name: 'Robert Brown', initials: 'RB' },
+      { id: 17, name: 'Marcus Chen', initials: 'MC' },
+      { id: 18, name: 'Diana Lopez', initials: 'DL' },
+      { id: 19, name: 'Patrick O\'Neil', initials: 'PO' }
+    ],
+    shiftProgress: 20,
+    shiftStatusText: 'Shift paused - Incident',
+    taskMetrics: {
+      patrolsCompleted: 3,
+      patrolsTotal: 4,
+      reportsDrafted: 1
+    }
   },
   {
     id: 1,
@@ -39,7 +60,14 @@ const siteData: SiteCard[] = [
       { id: 1, name: 'John Smith', initials: 'JS' },
       { id: 4, name: 'Sarah Chen', initials: 'SC' },
       { id: 7, name: 'Alex Johnson', initials: 'AJ' }
-    ]
+    ],
+    shiftProgress: 85,
+    shiftStatusText: 'Shift ending in 1h',
+    taskMetrics: {
+      patrolsCompleted: 3,
+      patrolsTotal: 4,
+      reportsDrafted: 1
+    }
   },
   {
     id: 3,
@@ -50,7 +78,14 @@ const siteData: SiteCard[] = [
     guards: [
       { id: 3, name: 'David Lee', initials: 'DL' },
       { id: 6, name: 'Lisa Wang', initials: 'LW' }
-    ]
+    ],
+    shiftProgress: 80,
+    shiftStatusText: 'Shift ending in 1h',
+    taskMetrics: {
+      patrolsCompleted: 4,
+      patrolsTotal: 5,
+      reportsDrafted: 2
+    }
   },
   {
     id: 4,
@@ -63,7 +98,14 @@ const siteData: SiteCard[] = [
       { id: 9, name: 'Nina Patel', initials: 'NP' },
       { id: 10, name: 'James Kim', initials: 'JK' },
       { id: 11, name: 'Emma Wilson', initials: 'EW' }
-    ]
+    ],
+    shiftProgress: 60,
+    shiftStatusText: 'Shift ending in 1.5h',
+    taskMetrics: {
+      patrolsCompleted: 3,
+      patrolsTotal: 4,
+      reportsDrafted: 1
+    }
   },
   {
     id: 5,
@@ -75,7 +117,14 @@ const siteData: SiteCard[] = [
       { id: 12, name: 'Carlos Rivera', initials: 'CR' },
       { id: 13, name: 'Amy Zhang', initials: 'AZ' },
       { id: 14, name: 'Tom Anderson', initials: 'TA' }
-    ]
+    ],
+    shiftProgress: 40,
+    shiftStatusText: 'Shift ending in 3h',
+    taskMetrics: {
+      patrolsCompleted: 1,
+      patrolsTotal: 2,
+      reportsDrafted: 0
+    }
   },
   {
     id: 6,
@@ -86,7 +135,14 @@ const siteData: SiteCard[] = [
     guards: [
       { id: 15, name: 'Rachel Green', initials: 'RG' },
       { id: 16, name: 'Mike Ross', initials: 'MR' }
-    ]
+    ],
+    shiftProgress: 90,
+    shiftStatusText: 'Shift ending in 0.5h',
+    taskMetrics: {
+      patrolsCompleted: 5,
+      patrolsTotal: 5,
+      reportsDrafted: 3
+    }
   }
 ];
 
@@ -143,6 +199,10 @@ const initialActivities: ActivityEvent[] = [
 
 export function LiveOperations() {
   const [activities, setActivities] = useState(initialActivities);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [selectedSite, setSelectedSite] = useState<SiteCard | null>(null);
+  const [showLogsDrawer, setShowLogsDrawer] = useState(false);
+  const [sites, setSites] = useState<SiteCard[]>(siteData);
 
   useEffect(() => {
     // Simulate real-time updates
@@ -168,6 +228,108 @@ export function LiveOperations() {
     alert(`Dispatching emergency response to ${siteName}`);
   };
 
+  const handleBroadcastAlert = (site: SiteCard) => {
+    setSelectedSite(site);
+    setShowBroadcastModal(true);
+  };
+
+  const handleBroadcastConfirm = () => {
+    if (selectedSite) {
+      // Calculate total active guards (using all guards on site, not just the guard count)
+      const totalGuards = selectedSite.guards.length;
+      
+      // Add broadcast event to Real-Time Events feed
+      const broadcastEvent: ActivityEvent = {
+        id: Date.now(),
+        message: `📢 EMERGENCY BROADCAST SENT - Alert sent to all units at ${selectedSite.name}. Admin triggered manual override.`,
+        timestamp: 'Just now',
+        severity: 'broadcast'
+      };
+      
+      setActivities(prev => [broadcastEvent, ...prev].slice(0, 10));
+      
+      // Show success toast
+      toast.success(`✅ Alert sent to ${totalGuards} active devices.`);
+    }
+  };
+
+  const handleViewLogs = (site: SiteCard) => {
+    setSelectedSite(site);
+    setShowLogsDrawer(true);
+  };
+
+  const handleResolveIncident = (siteId: number) => {
+    // Update the site status from critical to all-clear
+    setSites(prevSites =>
+      prevSites.map(site =>
+        site.id === siteId
+          ? {
+              ...site,
+              status: 'all-clear',
+              statusText: 'All Clear',
+              shiftProgress: 85, // Resume normal progress
+              shiftStatusText: 'Shift ending in 1h'
+            }
+          : site
+      )
+    );
+
+    // Also update the selected site if it's the one being resolved
+    setSelectedSite(prevSelected =>
+      prevSelected && prevSelected.id === siteId
+        ? {
+            ...prevSelected,
+            status: 'all-clear',
+            statusText: 'All Clear',
+            shiftProgress: 85,
+            shiftStatusText: 'Shift ending in 1h'
+          }
+        : prevSelected
+    );
+
+    // Add success event to activity feed
+    const resolvedEvent: ActivityEvent = {
+      id: Date.now(),
+      message: `✅ INCIDENT RESOLVED - Building B incident cleared. Site status restored to normal.`,
+      timestamp: 'Just now',
+      severity: 'success'
+    };
+    
+    setActivities(prev => [resolvedEvent, ...prev].slice(0, 10));
+    
+    // Show success toast
+    toast.success('✅ Incident resolved. Site status updated to All Clear.');
+  };
+
+  // Calculate critical incident count from live site data
+  const criticalIncidentCount = sites.filter(site => site.status === 'critical').length;
+  const criticalSites = sites.filter(site => site.status === 'critical');
+
+  // Handle critical incident card click - scroll to critical site and open logs
+  const handleCriticalIncidentClick = () => {
+    if (criticalIncidentCount > 0) {
+      // Find the first critical site
+      const criticalSite = criticalSites[0];
+      
+      // Scroll to the site card
+      const siteCardElement = document.getElementById(`site-card-${criticalSite.id}`);
+      if (siteCardElement) {
+        siteCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Highlight the card briefly
+        siteCardElement.classList.add('highlight-pulse');
+        setTimeout(() => {
+          siteCardElement.classList.remove('highlight-pulse');
+        }, 2000);
+      }
+      
+      // Auto-open the View Logs drawer after a brief delay
+      setTimeout(() => {
+        handleViewLogs(criticalSite);
+      }, 600);
+    }
+  };
+
   return (
     <div className="live-ops-container">
       {/* Top HUD Metrics */}
@@ -182,13 +344,19 @@ export function LiveOperations() {
           </div>
         </div>
 
-        <div className="hud-metric-card">
-          <div className="hud-metric-icon critical">
+        <div 
+          className={`hud-metric-card ${criticalIncidentCount > 0 ? 'clickable critical-card' : ''}`}
+          onClick={handleCriticalIncidentClick}
+          style={{ cursor: criticalIncidentCount > 0 ? 'pointer' : 'default' }}
+        >
+          <div className={`hud-metric-icon ${criticalIncidentCount > 0 ? 'critical' : 'success'}`}>
             <AlertTriangle size={20} />
           </div>
           <div className="hud-metric-content">
-            <div className="hud-metric-value">1</div>
-            <div className="hud-metric-label">Critical Incident</div>
+            <div className="hud-metric-value">{criticalIncidentCount}</div>
+            <div className="hud-metric-label">
+              {criticalIncidentCount > 0 ? 'Critical Incident' : 'All Systems Nominal'}
+            </div>
           </div>
         </div>
 
@@ -213,9 +381,10 @@ export function LiveOperations() {
           </div>
 
           <div className="site-health-grid">
-            {siteData.map(site => (
+            {sites.map(site => (
               <div
                 key={site.id}
+                id={`site-card-${site.id}`}
                 className={`site-status-card ${site.status === 'critical' ? 'critical' : ''}`}
               >
                 <div className="site-card-header">
@@ -227,6 +396,38 @@ export function LiveOperations() {
                 </div>
 
                 <div className="site-card-body">
+                  {/* Shift Progress Section */}
+                  <div className="shift-progress-section">
+                    <div className="progress-header">
+                      <span className="progress-label">Shift Completion</span>
+                      <span className="progress-percentage">{site.shiftProgress}%</span>
+                    </div>
+                    <div className="progress-bar-container">
+                      <div 
+                        className={`progress-bar-fill ${site.status === 'critical' ? 'critical' : 'success'}`}
+                        style={{ width: `${site.shiftProgress}%` }}
+                      />
+                    </div>
+                    <div className="progress-status-text">{site.shiftStatusText}</div>
+                  </div>
+
+                  {/* Task Metrics Section */}
+                  <div className="task-metrics-section">
+                    <div className="task-metric-item">
+                      <span className="task-metric-label">Patrols:</span>
+                      <span className="task-metric-value">
+                        {site.taskMetrics.patrolsCompleted}/{site.taskMetrics.patrolsTotal} Completed
+                      </span>
+                    </div>
+                    <div className="task-metric-item">
+                      <span className="task-metric-label">Reports:</span>
+                      <span className="task-metric-value">
+                        {site.taskMetrics.reportsDrafted} Drafted
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Active Guards Info */}
                   <div className="site-guard-info">
                     <div className="guard-count-label">
                       <Users size={16} />
@@ -247,15 +448,35 @@ export function LiveOperations() {
                     </div>
                   </div>
 
-                  {site.status === 'critical' && (
-                    <button
-                      className="dispatch-button"
-                      onClick={() => handleDispatch(site.name)}
-                    >
-                      <Send size={16} />
-                      Dispatch
-                    </button>
-                  )}
+                  {/* Action Buttons */}
+                  <div className="site-card-actions">
+                    {site.status === 'critical' ? (
+                      <>
+                        <button
+                          className="dispatch-button"
+                          onClick={() => handleBroadcastAlert(site)}
+                        >
+                          <Send size={16} />
+                          BROADCAST ALERT
+                        </button>
+                        <button
+                          className="view-logs-button"
+                          onClick={() => handleViewLogs(site)}
+                        >
+                          <Eye size={16} />
+                          View Logs
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="view-logs-button"
+                        onClick={() => handleViewLogs(site)}
+                      >
+                        <Eye size={16} />
+                        View Logs
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -284,6 +505,24 @@ export function LiveOperations() {
           </div>
         </div>
       </div>
+
+      {/* Broadcast Alert Modal */}
+      {showBroadcastModal && selectedSite && (
+        <BroadcastAlertModal
+          site={selectedSite}
+          onClose={() => setShowBroadcastModal(false)}
+          onConfirm={handleBroadcastConfirm}
+        />
+      )}
+
+      {/* Site Logs Drawer */}
+      {showLogsDrawer && selectedSite && (
+        <SiteLogsDrawer
+          site={selectedSite}
+          onClose={() => setShowLogsDrawer(false)}
+          onResolveIncident={handleResolveIncident}
+        />
+      )}
     </div>
   );
 }

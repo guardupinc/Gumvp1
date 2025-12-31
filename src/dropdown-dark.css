@@ -1,0 +1,27 @@
+/* Dropdown_Dark Component Styles */
+
+.dropdown-dark {
+  background: #1F2937;
+  border: 1px solid #374151;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #FFFFFF;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropdown-dark:hover {
+  background: #1F2937;
+  border-color: #374151;
+}
+
+.dropdown-dark:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dropdown-dark option {
+  background: #1F2937;
+  color: #FFFFFF;
+}

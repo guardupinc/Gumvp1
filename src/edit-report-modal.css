@@ -1,0 +1,407 @@
+/* Edit Report Modal Overlay */
+.edit-report-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: overlayFadeIn 200ms ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+  }
+  to {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Modal Container */
+.edit-report-modal {
+  background-color: #1A2332;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: modalMoveIn 200ms ease-out;
+  position: relative;
+}
+
+@keyframes modalMoveIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal Header */
+.edit-report-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.edit-report-modal-header h2 {
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.edit-report-modal-close {
+  background: none;
+  border: none;
+  color: #8B92A7;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.edit-report-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
+}
+
+/* Modal Content */
+.edit-report-modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Form Fields */
+.edit-report-form-field {
+  margin-bottom: 20px;
+}
+
+.edit-report-form-field:last-child {
+  margin-bottom: 0;
+}
+
+.edit-report-form-field label {
+  display: block;
+  color: #8B92A7;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Input Field */
+.edit-report-input {
+  width: 100%;
+  background-color: #0B1220;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #FFFFFF;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.edit-report-input:focus {
+  outline: none;
+  border-color: #2E7CF6;
+  box-shadow: 0 0 0 3px rgba(46, 124, 246, 0.1);
+}
+
+.edit-report-input::placeholder {
+  color: #4A5468;
+}
+
+/* Textarea Field */
+.edit-report-textarea {
+  width: 100%;
+  background-color: #0B1220;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #FFFFFF;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 180px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.edit-report-textarea:focus {
+  outline: none;
+  border-color: #2E7CF6;
+  box-shadow: 0 0 0 3px rgba(46, 124, 246, 0.1);
+}
+
+.edit-report-textarea::placeholder {
+  color: #4A5468;
+}
+
+/* Modal Actions Layout */
+.edit-report-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 24px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 20px;
+}
+
+.action-buttons-left {
+  display: flex;
+  align-items: center;
+}
+
+.action-buttons-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+/* Reject Report Button - Secondary Destructive */
+.edit-report-reject-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1.5px solid #EF4444;
+  border-radius: 8px;
+  color: #EF4444;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-report-reject-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #F87171;
+  color: #F87171;
+}
+
+.edit-report-reject-btn:active {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+/* Cancel Button */
+.edit-report-cancel-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1.5px solid #4A5468;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-report-cancel-btn:hover {
+  border-color: #8B92A7;
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Approve & Finalize Button - Primary Green */
+.edit-report-approve-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #3BD16F 0%, #2FB85E 100%);
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 209, 111, 0.3);
+}
+
+.edit-report-approve-btn:hover {
+  background: linear-gradient(135deg, #4ADB7E 0%, #3BD16F 100%);
+  box-shadow: 0 4px 12px rgba(59, 209, 111, 0.4);
+  transform: translateY(-1px);
+}
+
+.edit-report-approve-btn:active {
+  transform: translateY(0);
+}
+
+/* Save Changes Button - Remove this if not needed */
+.edit-report-save-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #2E7CF6 0%, #1E5DD8 100%);
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(46, 124, 246, 0.3);
+}
+
+.edit-report-save-btn:hover {
+  background: linear-gradient(135deg, #3D8BFF 0%, #2E7CF6 100%);
+  box-shadow: 0 4px 12px rgba(46, 124, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.edit-report-save-btn:active {
+  transform: translateY(0);
+}
+
+/* Scrollbar Styling for Modal Content */
+.edit-report-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.edit-report-modal-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+.edit-report-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.edit-report-modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Evidence / Attachments Section */
+.evidence-thumbnails {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.evidence-thumbnail {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #0B1220;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.evidence-thumbnail:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.evidence-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.evidence-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background-color: rgba(255, 61, 61, 0.9);
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.evidence-thumbnail:hover .evidence-remove-btn {
+  opacity: 1;
+}
+
+.evidence-remove-btn:hover {
+  background-color: rgba(255, 61, 61, 1);
+  transform: scale(1.05);
+}
+
+.evidence-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  color: #FFFFFF;
+  font-size: 11px;
+  padding: 8px 8px 6px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Admin Note Field - Distinct Background */
+.admin-note-field {
+  background-color: rgba(255, 235, 180, 0.08) !important;
+  border: 1px solid rgba(255, 193, 7, 0.2) !important;
+  min-height: 100px !important;
+}
+
+.admin-note-field:focus {
+  background-color: rgba(255, 235, 180, 0.12) !important;
+  border-color: rgba(255, 193, 7, 0.3) !important;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.08) !important;
+}
+
+.label-subtitle {
+  color: #FF9800;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.3px;
+  margin-left: 6px;
+}
+
+/* Notify Guard Checkbox */
+.notify-guard-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #8B92A7;
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.notify-guard-checkbox:hover {
+  color: #FFFFFF;
+}
+
+.notify-guard-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #2E7CF6;
+  border-radius: 4px;
+}

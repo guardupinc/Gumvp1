@@ -1,0 +1,93 @@
+/* Report Card Header */
+.report-card-header {
+  margin-bottom: 14px;
+}
+
+.report-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.report-title-row h3 {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.report-title-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-reference-id {
+  font-family: inherit;
+  color: #9CA3AF;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.report-timestamp {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Report Card Footer */
+.report-approved-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* View Details Link */
+.view-details-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s ease;
+}
+
+.view-details-link:hover {
+  opacity: 0.8;
+}
+
+.view-details-link span {
+  color: var(--accent);
+}
+
+/* Status Badge */
+.report-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-status-badge.approved {
+  background: rgba(59, 209, 111, 0.1);
+  color: var(--primary-action);
+  border: 1px solid rgba(59, 209, 111, 0.2);
+}
+
+.report-status-badge.rejected {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}

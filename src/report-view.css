@@ -1,0 +1,142 @@
+/* Report View Container */
+.report-view-container {
+  min-height: 100vh;
+  background: #0B1220;
+  padding: 24px;
+}
+
+/* Report View Header */
+.report-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #1A2332;
+  border: 1px solid #2A3A52;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: #2A3A52;
+  border-color: #3A4A62;
+  transform: translateX(-4px);
+}
+
+.report-view-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.action-button-secondary {
+  background: #1A2332;
+  color: #FFFFFF;
+  border: 1px solid #2A3A52;
+}
+
+.action-button-secondary:hover {
+  background: #2A3A52;
+  border-color: #FF7A18;
+}
+
+.action-button-primary {
+  background: #FF7A18;
+  color: #FFFFFF;
+}
+
+.action-button-primary:hover {
+  background: #E66A08;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 122, 24, 0.3);
+}
+
+/* Report View Title */
+.report-view-title-section {
+  margin-bottom: 32px;
+}
+
+.report-view-title {
+  color: #FFFFFF;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.report-view-subtitle {
+  color: #8B92A7;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* PDF Wrapper */
+.report-view-pdf-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #FFFFFF;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .report-view-container {
+    padding: 16px;
+  }
+
+  .report-view-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .back-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .report-view-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .report-view-title {
+    font-size: 22px;
+  }
+
+  .report-view-pdf-wrapper {
+    border-radius: 8px;
+  }
+}
