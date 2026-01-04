@@ -4,6 +4,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { GuardDetailSlideOver } from '../ui/GuardDetailSlideOver';
 import { AddNewGuardModal } from '../ui/AddNewGuardModal';
+import { useAppState } from '../../contexts/AppStateContext';
 
 interface Guard {
   id: number;
@@ -201,6 +202,9 @@ const guards: Guard[] = [
 ];
 
 export function WorkforceManagement() {
+  // Access global state
+  const { isGuardOnShift } = useAppState();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGuard, setSelectedGuard] = useState<Guard | null>(null);
   const [guardsList, setGuards] = useState(guards);
@@ -347,6 +351,27 @@ export function WorkforceManagement() {
           // Get Security Guard Card from documents
           const securityCard = getSecurityGuardCard(guard.id);
           
+          // Check if guard is currently on shift (live sync with Operations)
+          const isOnShift = isGuardOnShift(guard.id);
+          
+          // Determine status based on live shift data
+          // In production: This would query real-time database status
+          const liveStatus = guard.isFrozen 
+            ? 'frozen' 
+            : isOnShift 
+              ? 'on-shift' 
+              : 'available';
+          
+          // Status badge configuration
+          const statusConfig = {
+            'frozen': { dot: '#D32F2F', text: 'Frozen', textColor: '#D32F2F' },
+            'on-shift': { dot: 'success', text: 'On-Shift', textColor: '' },
+            'available': { dot: '', text: 'Available', textColor: '#8E9AAF' },
+            'off-duty': { dot: '', text: 'Off-Duty', textColor: '#D32F2F' }
+          };
+          
+          const status = statusConfig[liveStatus as keyof typeof statusConfig];
+          
           return (
           <div 
             key={guard.id} 
@@ -374,8 +399,16 @@ export function WorkforceManagement() {
                   </>
                 ) : (
                   <>
-                    <span className={`status-dot ${guard.status === 'on-shift' ? 'success' : guard.status === 'active' ? 'warning' : ''}`} />
-                    <span className="guard-status-text">{guard.status === 'on-shift' ? 'On-Shift' : guard.status === 'active' ? 'Active' : 'Off-Duty'}</span>
+                    <span 
+                      className={`status-dot ${status.dot === 'success' ? 'success' : ''}`}
+                      style={status.dot.startsWith('#') ? { backgroundColor: status.dot } : {}}
+                    />
+                    <span 
+                      className="guard-status-text"
+                      style={status.textColor ? { color: status.textColor } : {}}
+                    >
+                      {status.text}
+                    </span>
                   </>
                 )}
               </div>

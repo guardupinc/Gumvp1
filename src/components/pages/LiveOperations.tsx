@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Users, AlertTriangle, Shield, Send, FileText, Eye } from 'lucide-react';
 import { BroadcastAlertModal } from '../modals/BroadcastAlertModal';
 import { SiteLogsDrawer } from '../drawers/SiteLogsDrawer';
+import { generateTodayOperations } from '../widgets/DailyOperationsTimeline';
 import { toast } from 'sonner@2.0.3';
+import { useAppState } from '../../contexts/AppStateContext';
 import '../../styles/drawer.css';
 
 interface SiteCard {
@@ -198,11 +200,30 @@ const initialActivities: ActivityEvent[] = [
 ];
 
 export function LiveOperations() {
+  // Access global state
+  const { appState, getActiveGuardCount } = useAppState();
+  
   const [activities, setActivities] = useState(initialActivities);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteCard | null>(null);
   const [showLogsDrawer, setShowLogsDrawer] = useState(false);
   const [sites, setSites] = useState<SiteCard[]>(siteData);
+
+  // Get active guards count from global state
+  // In production: This would query the database for status = 'On Shift'
+  const displayActiveGuardsCount = getActiveGuardCount();
+
+  // Calculate shift coverage rate (shift fulfillment)
+  // In production: This would query scheduled shifts vs active shifts
+  const scheduledShiftCount = 8; // Total shifts scheduled for this timeframe
+  const coverageRate = Math.round((displayActiveGuardsCount / scheduledShiftCount) * 100);
+  const missingShiftsCount = scheduledShiftCount - displayActiveGuardsCount;
+  
+  // Dynamic coverage label and styling
+  const coverageLabel = coverageRate === 100 
+    ? 'All Shifts Filled' 
+    : `${missingShiftsCount} Shift${missingShiftsCount !== 1 ? 's' : ''} Missing`;
+  const coverageStatus = coverageRate === 100 ? 'success' : 'critical';
 
   useEffect(() => {
     // Simulate real-time updates
@@ -339,8 +360,8 @@ export function LiveOperations() {
             <Users size={20} />
           </div>
           <div className="hud-metric-content">
-            <div className="hud-metric-value">42</div>
-            <div className="hud-metric-label">Active Guards</div>
+            <div className="hud-metric-value">{displayActiveGuardsCount}</div>
+            <div className="hud-metric-label">Active On Site</div>
           </div>
         </div>
 
@@ -361,12 +382,12 @@ export function LiveOperations() {
         </div>
 
         <div className="hud-metric-card">
-          <div className="hud-metric-icon success">
+          <div className={`hud-metric-icon ${coverageStatus}`}>
             <Shield size={20} />
           </div>
           <div className="hud-metric-content">
-            <div className="hud-metric-value">98%</div>
-            <div className="hud-metric-label">Coverage</div>
+            <div className="hud-metric-value">{coverageRate}%</div>
+            <div className="hud-metric-label">{coverageLabel}</div>
           </div>
         </div>
       </div>

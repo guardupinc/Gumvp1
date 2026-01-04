@@ -7,7 +7,7 @@ import { Table, Column } from '../ui/Table';
 import { ShiftCalendar } from '../ui/ShiftCalendar';
 import { AddShiftModal, ShiftFormData } from '../modals/AddShiftModal';
 import { QuickActionModal } from '../modals/QuickActionModal';
-import { ReviewReportModal } from '../modals/ReviewReportModal';
+import { ReportDetailsModal } from '../ui/ReportDetailsModal';
 import { DailyOperationsTimeline, generateTodayOperations } from '../widgets/DailyOperationsTimeline';
 import '../../modals.css';
 
@@ -27,6 +27,7 @@ interface Report {
 interface DashboardProps {
   reports?: Report[];
   onNavigateToPendingReports?: () => void;
+  onNavigateToOperations?: () => void;
 }
 
 interface RecentActivity {
@@ -40,11 +41,12 @@ interface RecentActivity {
 
 interface PendingReport {
   id: number;
-  type: string;
-  title: string;
+  type: 'DAR' | 'Incident';
+  site: string;
+  description: string;
   submittedBy: string;
   submittedDate: string;
-  priority: string;
+  priority: 'normal' | 'high';
 }
 
 const recentActivities: RecentActivity[] = [
@@ -90,22 +92,26 @@ const activityColumns: Column<RecentActivity>[] = [
 
 const reportColumns: Column<PendingReport>[] = [
   {
-    key: 'type',
-    header: 'Type',
-    render: (row) => <span className="table-badge">{row.type}</span>,
-    width: '100px',
+    key: 'icon',
+    header: '',
+    render: (row) => {
+      if (row.type === 'Incident') {
+        return <AlertTriangle size={18} className="report-icon-incident" />;
+      } else {
+        return <FileText size={18} className="report-icon-daily" />;
+      }
+    },
+    width: '50px',
   },
   {
-    key: 'title',
-    header: 'Report Title',
-    render: (row) => row.title,
-  },
-  {
-    key: 'submittedBy',
-    header: 'Submitted By',
-    render: (row) => row.submittedBy,
-    width: '150px',
-    hideOnMobile: true,
+    key: 'context',
+    header: 'Report Context',
+    render: (row) => (
+      <div className="report-context">
+        <span className="report-site-name">{row.site}</span>
+        <span className="report-description"> - {row.description}</span>
+      </div>
+    ),
   },
   {
     key: 'submittedDate',
@@ -117,7 +123,7 @@ const reportColumns: Column<PendingReport>[] = [
     key: 'priority',
     header: 'Priority',
     render: (row) => (
-      <span className={`status-badge ${row.priority === 'high' ? 'expired' : row.priority === 'medium' ? 'pending' : 'success'}`}>
+      <span className={`status-badge ${row.priority === 'high' ? 'expired' : 'success'}`}>
         {row.priority}
       </span>
     ),
@@ -130,26 +136,43 @@ const reportColumns: Column<PendingReport>[] = [
       <div className="table-actions">
         {isHovered ? (
           <>
-            <button 
-              className="action-button action-approve"
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log('Quick approve:', row.id);
-              }}
-              title="Approve"
-            >
-              <Check size={16} />
-            </button>
-            <button 
-              className="action-button action-view"
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log('View report:', row.id);
-              }}
-              title="View Details"
-            >
-              <Eye size={16} />
-            </button>
+            {/* High priority incidents: Only show Eye icon (safety logic) */}
+            {row.priority === 'high' ? (
+              <button 
+                className="action-button action-view"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('View report:', row.id);
+                }}
+                title="View Details"
+              >
+                <Eye size={16} />
+              </button>
+            ) : (
+              /* Normal priority: Show both Eye and Checkmark */
+              <>
+                <button 
+                  className="action-button action-approve"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('Quick approve:', row.id);
+                  }}
+                  title="Approve"
+                >
+                  <Check size={16} />
+                </button>
+                <button 
+                  className="action-button action-view"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('View report:', row.id);
+                  }}
+                  title="View Details"
+                >
+                  <Eye size={16} />
+                </button>
+              </>
+            )}
           </>
         ) : (
           <MoreHorizontal size={16} className="action-more" />
@@ -210,31 +233,45 @@ const generateShiftData = () => {
   return shifts;
 };
 
-export function Dashboard({ reports = [], onNavigateToPendingReports }: DashboardProps) {
+export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigateToOperations }: DashboardProps) {
   const shifts = generateShiftData();
-  const [selectedReport, setSelectedReport] = useState<PendingReport | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
   const [addShiftPrefilledDate, setAddShiftPrefilledDate] = useState<Date | undefined>();
   const [addShiftPrefilledTimeSlot, setAddShiftPrefilledTimeSlot] = useState<string | undefined>();
   const todayOperations = generateTodayOperations();
   
   const [isAddShiftModalOpen, setAddShiftModalOpen] = useState(false);
   const [isQuickActionModalOpen, setQuickActionModalOpen] = useState(false);
-  const [isReviewReportModalOpen, setReviewReportModalOpen] = useState(false);
+  const [isReportDetailsModalOpen, setReportDetailsModalOpen] = useState(false);
 
-  // Transform Report data to PendingReport format
-  const pendingReportsData: PendingReport[] = reports
-    .filter(r => r.status === 'pending')
-    .map(r => ({
-      id: r.id,
-      type: r.type === 'DAR' ? 'Daily' : r.type,
-      title: `${r.content.substring(0, 50)}... - ${r.site}`,
-      submittedBy: r.guardName,
-      submittedDate: r.timestamp.split('•')[0].trim(),
-      priority: r.priority
-    }));
+  // Filter only pending reports
+  const pendingReports = reports.filter(r => r.status === 'pending');
+
+  // Calculate active guards count (guards currently on shift)
+  // In production: This would query the database for status = 'On Shift'
+  const activeGuardsCount = todayOperations.filter(op => op.status === 'active').length;
+  
+  // For demo state: Set to 8 (5 at Building B + 3 at Building A)
+  const displayActiveGuardsCount = 8;
+
+  // Transform Report data to PendingReport format for table display
+  const pendingReportsData: PendingReport[] = pendingReports.map(r => ({
+    id: r.id,
+    type: r.type,
+    site: r.site,
+    description: `${r.content.substring(0, 50)}...`,
+    submittedBy: r.guardName,
+    submittedDate: r.timestamp.split('•')[0].trim(),
+    priority: r.priority
+  }));
+
+  // Get the full Report object for the selected report
+  const selectedReport = selectedReportId !== null 
+    ? pendingReports.find(r => r.id === selectedReportId) || null
+    : null;
 
   // Calculate pending reports count from live data
-  const pendingCount = reports.filter(r => r.status === 'pending').length;
+  const pendingCount = pendingReports.length;
 
   const handleShiftClick = (shift: any) => {
     console.log('Shift clicked:', shift);
@@ -247,12 +284,33 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
   };
 
   const handleReviewReport = (reportId: number) => {
-    const report = pendingReportsData.find(r => r.id === reportId);
-    if (report) {
-      setSelectedReport(report);
-      setReviewReportModalOpen(true);
+    setSelectedReportId(reportId);
+    setReportDetailsModalOpen(true);
+  };
+
+  const handlePreviousReport = () => {
+    if (!selectedReportId) return;
+    const currentIndex = pendingReports.findIndex(r => r.id === selectedReportId);
+    if (currentIndex > 0) {
+      setSelectedReportId(pendingReports[currentIndex - 1].id);
     }
   };
+
+  const handleNextReport = () => {
+    if (!selectedReportId) return;
+    const currentIndex = pendingReports.findIndex(r => r.id === selectedReportId);
+    if (currentIndex < pendingReports.length - 1) {
+      setSelectedReportId(pendingReports[currentIndex + 1].id);
+    }
+  };
+
+  const hasPreviousReport = selectedReportId !== null 
+    ? pendingReports.findIndex(r => r.id === selectedReportId) > 0 
+    : false;
+  
+  const hasNextReport = selectedReportId !== null 
+    ? pendingReports.findIndex(r => r.id === selectedReportId) < pendingReports.length - 1 
+    : false;
 
   const handleSubmitShift = (shiftData: ShiftFormData) => {
     console.log('New shift submitted:', shiftData);
@@ -264,7 +322,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
     if (actionId === 'add-shift') {
       setAddShiftModalOpen(true);
     } else if (actionId === 'review-reports') {
-      setReviewReportModalOpen(true);
+      setReportDetailsModalOpen(true);
     }
     // Add other quick action handlers here
   };
@@ -294,9 +352,10 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
       <div className="kpi-grid">
         <KPICard
           title="Active Guards"
-          value="47"
-          change={{ value: '+3 from last week', trend: 'up' }}
+          value={displayActiveGuardsCount.toString()}
+          change={{ value: 'Active On Site', trend: 'neutral' }}
           icon={<Users size={20} />}
+          onClick={onNavigateToOperations}
         />
         <KPICard
           title="Shifts Today"
@@ -329,6 +388,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
           }}
           onViewFullSchedule={() => {
             console.log('View full schedule clicked');
+            onNavigateToOperations?.();
           }}
         />
       </div>
@@ -340,7 +400,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
             <FileText size={20} className="text-accent" />
             <h3>Reports Pending Review</h3>
           </div>
-          <button className="button-primary" onClick={() => setReviewReportModalOpen(true)}>
+          <button className="button-primary" onClick={() => setReportDetailsModalOpen(true)}>
             Review All
           </button>
         </div>
@@ -413,12 +473,16 @@ export function Dashboard({ reports = [], onNavigateToPendingReports }: Dashboar
         onClose={() => setQuickActionModalOpen(false)} 
         onActionSelect={handleQuickAction} 
       />
-      <ReviewReportModal 
-        isOpen={isReviewReportModalOpen} 
-        onClose={() => setReviewReportModalOpen(false)} 
+      <ReportDetailsModal 
+        isOpen={isReportDetailsModalOpen} 
+        onClose={() => setReportDetailsModalOpen(false)} 
         report={selectedReport}
         onApprove={handleApproveReport}
         onReject={handleRejectReport}
+        onPrevious={handlePreviousReport}
+        onNext={handleNextReport}
+        hasPrevious={hasPreviousReport}
+        hasNext={hasNextReport}
       />
     </div>
   );

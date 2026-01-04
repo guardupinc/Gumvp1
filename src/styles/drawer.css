@@ -230,6 +230,12 @@
   color: #FF7A18;
 }
 
+.timeline-icon.ticket-update {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+
 /* Timeline Content */
 .timeline-content {
   flex: 1;
@@ -309,10 +315,21 @@
   color: #FF7A18;
 }
 
+.timeline-event.ticket-update .timeline-title {
+  color: #3B82F6;
+}
+
 .timeline-description {
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.6;
+  white-space: pre-line; /* Preserve line breaks from \n\n */
+}
+
+/* Ticket Update Description Styling */
+.timeline-event.ticket-update .timeline-description {
+  font-size: 13px;
+  line-height: 1.8;
 }
 
 /* Timeline Thumbnail */
@@ -377,6 +394,30 @@
   border: 1px solid rgba(59, 209, 111, 0.4);
 }
 
+/* Clickable OPEN TICKET badge */
+.incident-badge.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.incident-badge.clickable:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.6);
+  transform: translateY(-1px);
+}
+
+.incident-badge.clickable:active {
+  transform: translateY(0);
+}
+
+/* Grey ticket badge after submission */
+.incident-badge.ticket-created {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94A3B8;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  cursor: default;
+}
+
 .resolve-incident-button {
   display: flex;
   align-items: center;
@@ -400,6 +441,198 @@
 
 .resolve-incident-button:active {
   transform: translateY(0);
+}
+
+/* Inline Ticket Form */
+.inline-ticket-form {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    margin-top: 16px;
+  }
+}
+
+.ticket-form-header {
+  margin-bottom: 16px;
+}
+
+.ticket-form-header h4 {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ticket-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.ticket-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ticket-form-field label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ticket-select {
+  background: rgba(11, 18, 32, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ticket-select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(11, 18, 32, 0.9);
+}
+
+.ticket-select:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Segmented Control for Priority */
+.priority-segmented-control {
+  display: flex;
+  gap: 0;
+  background: rgba(11, 18, 32, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.priority-option {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.priority-option:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.priority-option.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.3) 100%);
+  color: #3B82F6;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.ticket-textarea {
+  background: rgba(11, 18, 32, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 70px;
+  transition: all 0.2s ease;
+}
+
+.ticket-textarea:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(11, 18, 32, 0.9);
+}
+
+.ticket-textarea:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.ticket-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.ticket-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ticket-form-actions .button-primary {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.3) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  border-radius: 6px;
+  color: #3B82F6;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ticket-form-actions .button-primary:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.4) 0%, rgba(37, 99, 235, 0.4) 100%);
+  border-color: rgba(59, 130, 246, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.ticket-form-actions .button-primary:active {
+  transform: translateY(0);
+}
+
+.ticket-form-actions .button-text {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ticket-form-actions .button-text:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
 }
 
 /* ========================================
@@ -741,4 +974,138 @@
 
 .export-pdf-button:active {
   transform: translateY(0);
+}
+
+/* ========================================
+   RESOLVE CONFIRMATION MODAL
+   ======================================== */
+
+/* Modal Overlay */
+.resolve-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Modal Container */
+.resolve-modal {
+  width: 480px;
+  max-width: 90vw;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal Header */
+.resolve-modal-header {
+  padding: var(--spacing-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.resolve-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+
+/* Modal Content */
+.resolve-modal-content {
+  padding: var(--spacing-5);
+}
+
+.resolve-modal-content p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* Modal Actions */
+.resolve-modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-5);
+}
+
+/* Confirm Button - Solid Green */
+.resolve-modal-confirm {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, rgba(59, 209, 111, 0.3) 0%, rgba(42, 157, 95, 0.3) 100%);
+  border: 1px solid rgba(59, 209, 111, 0.5);
+  border-radius: 8px;
+  color: #3BD16F;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.resolve-modal-confirm:hover {
+  background: linear-gradient(135deg, rgba(59, 209, 111, 0.4) 0%, rgba(42, 157, 95, 0.4) 100%);
+  border-color: rgba(59, 209, 111, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 209, 111, 0.3);
+}
+
+.resolve-modal-confirm:active {
+  transform: translateY(0);
+}
+
+/* Cancel Button - Grey Ghost */
+.resolve-modal-cancel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.resolve-modal-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.resolve-modal-cancel:active {
+  transform: scale(0.98);
 }

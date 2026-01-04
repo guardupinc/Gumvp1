@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, Camera, CheckCircle, Clock, FileDown, Check, Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, AlertTriangle, Camera, CheckCircle, Clock, FileDown, Check, Send, ChevronDown, ChevronUp, Edit3 } from 'lucide-react';
 
 interface SiteCard {
   id: number;
@@ -20,7 +20,7 @@ interface SiteCard {
 interface LogEvent {
   id: number;
   timestamp: string;
-  type: 'sos' | 'patrol' | 'checkpoint' | 'shift-start';
+  type: 'sos' | 'patrol' | 'checkpoint' | 'shift-start' | 'ticket-update';
   title: string;
   description: string;
   thumbnailUrl?: string;
@@ -28,6 +28,12 @@ interface LogEvent {
   guardInitials: string;
   guardAvatar?: string;
   isResolved?: boolean;
+  ticketId?: string;
+  ticketData?: {
+    issueType: string;
+    priority: 'Low' | 'Medium' | 'High';
+    notes: string;
+  };
 }
 
 interface SiteLogsDrawerProps {
@@ -140,6 +146,17 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
   const [chatMessage, setChatMessage] = useState('');
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(true);
+  
+  // Ticket form state
+  const [expandedTicketForm, setExpandedTicketForm] = useState<number | null>(null);
+  const [ticketIssueType, setTicketIssueType] = useState('Emergency Services Dispatched (Police/Fire)');
+  const [ticketPriority, setTicketPriority] = useState<'Low' | 'Medium' | 'High'>('High');
+  const [ticketNotes, setTicketNotes] = useState('');
+  
+  // Resolve confirmation modal state
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [pendingResolveEventId, setPendingResolveEventId] = useState<number | null>(null);
+  
   const [chatMessages, setChatMessages] = useState([
     {
       id: 1,
@@ -199,15 +216,31 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
   };
 
   const handleResolveIncident = (eventId: number) => {
-    setEvents(prevEvents => 
-      prevEvents.map(event => 
-        event.id === eventId 
-          ? { ...event, isResolved: true }
-          : event
-      )
-    );
-    onResolveIncident(site.id);
-    alert('✅ Incident marked as resolved. Ticket closed.');
+    // Show confirmation modal instead of immediate action
+    setPendingResolveEventId(eventId);
+    setShowResolveModal(true);
+  };
+
+  const confirmResolveIncident = () => {
+    if (pendingResolveEventId !== null) {
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          event.id === pendingResolveEventId 
+            ? { ...event, isResolved: true }
+            : event
+        )
+      );
+      onResolveIncident(site.id);
+    }
+    
+    // Close modal and reset
+    setShowResolveModal(false);
+    setPendingResolveEventId(null);
+  };
+
+  const cancelResolveIncident = () => {
+    setShowResolveModal(false);
+    setPendingResolveEventId(null);
   };
 
   const handleSendMessage = () => {
@@ -232,6 +265,84 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
     }
   };
 
+  const handleOpenTicketForm = (eventId: number) => {
+    const event = events.find(e => e.id === eventId);
+    setExpandedTicketForm(eventId);
+    
+    // If ticket exists, pre-fill form with saved values
+    if (event?.ticketData) {
+      setTicketIssueType(event.ticketData.issueType);
+      setTicketPriority(event.ticketData.priority);
+      setTicketNotes(event.ticketData.notes);
+    } else {
+      // Reset form to defaults
+      setTicketIssueType('Emergency Services Dispatched (Police/Fire)');
+      setTicketPriority('High');
+      setTicketNotes('');
+    }
+  };
+
+  const handleCancelTicket = () => {
+    setExpandedTicketForm(null);
+    setTicketNotes('');
+  };
+
+  const handleSubmitTicket = (eventId: number) => {
+    const event = events.find(e => e.id === eventId);
+    const isNewTicket = !event?.ticketId;
+    const ticketNumber = isNewTicket ? 'TR-992' : event.ticketId;
+    
+    // Get the highest event ID to create a new unique ID for the audit trail
+    const maxId = Math.max(...events.map(e => e.id), 0);
+    
+    // Build description with priority, type, and notes
+    const summaryLine = `Ticket #${ticketNumber} ${isNewTicket ? 'Created' : 'Updated'} • Priority: ${ticketPriority} • Type: ${ticketIssueType}`;
+    const notesLine = ticketNotes.trim() ? `\n\n${ticketNotes}` : '';
+    const fullDescription = summaryLine + notesLine;
+    
+    // Create audit trail entry
+    const auditEntry: LogEvent = {
+      id: maxId + 1,
+      timestamp: 'Just now',
+      type: 'ticket-update',
+      title: `📝 Ticket #${ticketNumber} ${isNewTicket ? 'Created' : 'Updated'}`,
+      description: fullDescription,
+      guardName: adminName,
+      guardInitials: adminInitials,
+      guardAvatar: undefined
+    };
+    
+    // Update events: add audit trail entry at the beginning (most recent first) and save ticket data
+    setEvents(prevEvents => {
+      const updatedEvents = prevEvents.map(event => 
+        event.id === eventId 
+          ? { 
+              ...event, 
+              ticketId: ticketNumber,
+              ticketData: { 
+                issueType: ticketIssueType, 
+                priority: ticketPriority, 
+                notes: ticketNotes 
+              } 
+            }
+          : event
+      );
+      
+      // Insert audit trail entry at the beginning
+      return [auditEntry, ...updatedEvents];
+    });
+    
+    // Collapse form - visual feedback is sufficient
+    setExpandedTicketForm(null);
+    
+    console.log(`Ticket ${isNewTicket ? 'created' : 'updated'}:`, {
+      ticketId: ticketNumber,
+      issueType: ticketIssueType,
+      priority: ticketPriority,
+      notes: ticketNotes
+    });
+  };
+
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'sos':
@@ -242,6 +353,8 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
         return <CheckCircle size={20} />;
       case 'shift-start':
         return <Clock size={20} />;
+      case 'ticket-update':
+        return <Edit3 size={20} />;
       default:
         return <CheckCircle size={20} />;
     }
@@ -257,6 +370,8 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
         return 'checkpoint';
       case 'shift-start':
         return 'shift-start';
+      case 'ticket-update':
+        return 'ticket-update';
       default:
         return 'checkpoint';
     }
@@ -350,16 +465,33 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
                   {event.type === 'sos' && (
                     <div className="incident-action-section">
                       <div className="incident-status-row">
-                        <span className={`incident-badge ${event.isResolved ? 'resolved' : 'open'}`}>
-                          {event.isResolved ? (
-                            <>
-                              <Check size={12} />
-                              RESOLVED
-                            </>
-                          ) : (
-                            'OPEN TICKET'
-                          )}
-                        </span>
+                        {/* Badge - Changes from "OPEN TICKET" (Red) to "#TICKET-TR-992" (Yellow) */}
+                        {event.ticketId ? (
+                          <button 
+                            className="incident-badge ticket-created clickable"
+                            onClick={() => !event.isResolved && handleOpenTicketForm(event.id)}
+                            disabled={event.isResolved}
+                          >
+                            TICKET #{event.ticketId}
+                          </button>
+                        ) : (
+                          <button 
+                            className="incident-badge open clickable"
+                            onClick={() => !event.isResolved && handleOpenTicketForm(event.id)}
+                            disabled={event.isResolved}
+                          >
+                            {event.isResolved ? (
+                              <>
+                                <Check size={12} />
+                                RESOLVED
+                              </>
+                            ) : (
+                              'OPEN TICKET'
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* Mark Resolved Button - Always visible when not resolved */}
                         {!event.isResolved && (
                           <button 
                             className="resolve-incident-button"
@@ -370,6 +502,81 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
                           </button>
                         )}
                       </div>
+
+                      {/* Inline Ticket Form - Slides down (shows for both new and existing tickets) */}
+                      {expandedTicketForm === event.id && (
+                        <div className="inline-ticket-form">
+                          <div className="ticket-form-header">
+                            <h3>{event.guardName}</h3>
+                          </div>
+
+                          <div className="ticket-form-fields">
+                            <div className="ticket-form-field">
+                              <label>Issue Type</label>
+                              <select 
+                                value={ticketIssueType}
+                                onChange={(e) => setTicketIssueType(e.target.value)}
+                                className="ticket-select"
+                              >
+                                <option value="Use of Force / Physical Altercation">Use of Force / Physical Altercation</option>
+                                <option value="Trespass / Unauthorized Access">Trespass / Unauthorized Access</option>
+                                <option value="Emergency Services Dispatched (Police/Fire)">Emergency Services Dispatched (Police/Fire)</option>
+                                <option value="Injured Person / Medical Emergency">Injured Person / Medical Emergency</option>
+                              </select>
+                            </div>
+
+                            <div className="ticket-form-field">
+                              <label>Priority</label>
+                              <div className="priority-segmented-control">
+                                <button
+                                  className={`priority-option ${ticketPriority === 'Low' ? 'active' : ''}`}
+                                  onClick={() => setTicketPriority('Low')}
+                                >
+                                  Low
+                                </button>
+                                <button
+                                  className={`priority-option ${ticketPriority === 'Medium' ? 'active' : ''}`}
+                                  onClick={() => setTicketPriority('Medium')}
+                                >
+                                  Medium
+                                </button>
+                                <button
+                                  className={`priority-option ${ticketPriority === 'High' ? 'active' : ''}`}
+                                  onClick={() => setTicketPriority('High')}
+                                >
+                                  High
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="ticket-form-field">
+                              <label>Notes</label>
+                              <textarea 
+                                value={ticketNotes}
+                                onChange={(e) => setTicketNotes(e.target.value)}
+                                placeholder="Describe the issue and required action..."
+                                className="ticket-textarea"
+                                rows={3}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="ticket-form-actions">
+                            <button 
+                              className="button-primary"
+                              onClick={() => handleSubmitTicket(event.id)}
+                            >
+                              {event.ticketId ? 'Update Ticket' : 'Submit Ticket'}
+                            </button>
+                            <button 
+                              className="button-text"
+                              onClick={handleCancelTicket}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -451,6 +658,32 @@ export function SiteLogsDrawer({ site, onClose, onResolveIncident }: SiteLogsDra
           </button>
         </div>
       </div>
+
+      {/* Resolve Incident Confirmation Modal - Visual Clone of Freeze Guard Access Modal */}
+      {showResolveModal && (
+        <>
+          <div className="confirm-modal-overlay" onClick={cancelResolveIncident} />
+          <div className="confirm-modal">
+            <div className="confirm-modal-header">
+              <div className="confirm-modal-icon-wrapper success">
+                <CheckCircle size={24} />
+              </div>
+              <h3 className="confirm-modal-title">Resolve Incident?</h3>
+              <p className="confirm-modal-description">
+                You are about to mark this SOS Alert as resolved. This will return the site status to All Clear.
+              </p>
+            </div>
+            <div className="confirm-modal-footer">
+              <button className="button-secondary" onClick={cancelResolveIncident}>
+                Cancel
+              </button>
+              <button className="button-success" onClick={confirmResolveIncident}>
+                Resolve Incident
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

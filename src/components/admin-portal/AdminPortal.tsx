@@ -10,6 +10,7 @@ import { Vault } from '../pages/Vault';
 import { Settings } from '../pages/Settings';
 import { LiveOperations } from '../pages/LiveOperations';
 import { Reports } from '../pages/Reports';
+import { AppStateProvider } from '../../contexts/AppStateContext';
 
 // Report type for shared state
 interface Report {
@@ -270,6 +271,10 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     // The Reports component will default to the 'pending' tab
   };
 
+  const handleNavigateToOperations = () => {
+    setCurrentPage('operations');
+  };
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
@@ -277,6 +282,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           <Dashboard 
             reports={reports}
             onNavigateToPendingReports={handleNavigateToPendingReports}
+            onNavigateToOperations={handleNavigateToOperations}
           />
         );
       case 'scheduling':
@@ -318,32 +324,35 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           <Dashboard 
             reports={reports}
             onNavigateToPendingReports={handleNavigateToPendingReports}
+            onNavigateToOperations={handleNavigateToOperations}
           />
         );
     }
   };
 
   return (
-    <div className="app-shell">
-      <Sidebar
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        collapsed={sidebarCollapsed}
-        open={sidebarOpen}
-        onClose={handleCloseSidebar}
-        onLogout={onLogout}
-        onToggle={handleToggleSidebar}
-      />
-      <div className={`main-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
-        <TopBar
+    <AppStateProvider>
+      <div className="app-shell">
+        <Sidebar
           currentPage={currentPage}
-          onToggleSidebar={handleToggleSidebar}
-          userRole="Security Admin"
+          onNavigate={setCurrentPage}
+          collapsed={sidebarCollapsed}
+          open={sidebarOpen}
+          onClose={handleCloseSidebar}
+          onLogout={onLogout}
+          onToggle={handleToggleSidebar}
         />
-        <main className="main-content">
-          {renderPage()}
-        </main>
+        <div className={`main-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+          <TopBar
+            currentPage={currentPage}
+            onToggleSidebar={handleToggleSidebar}
+            userRole="Security Admin"
+          />
+          <main className="main-content">
+            {renderPage()}
+          </main>
+        </div>
       </div>
-    </div>
+    </AppStateProvider>
   );
 }
