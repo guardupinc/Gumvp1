@@ -880,6 +880,25 @@
   background: #1E293B;
 }
 
+/* Vault New Entry Animation - Green Flash Highlight */
+.table tbody tr.vault-new-entry {
+  animation: vaultEntryFlash 2.5s ease-out;
+}
+
+@keyframes vaultEntryFlash {
+  0% {
+    background: rgba(59, 209, 111, 0.25); /* #3BD16F with 25% opacity */
+    box-shadow: 0 0 0 2px rgba(59, 209, 111, 0.3);
+  }
+  50% {
+    background: rgba(59, 209, 111, 0.15);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
 .table tbody tr:last-child td {
   border-bottom: none;
 }

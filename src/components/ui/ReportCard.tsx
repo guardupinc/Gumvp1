@@ -13,6 +13,10 @@ interface ReportCardProps {
   content: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionNote?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
   isSelected?: boolean;
   onToggleSelect?: (id: number) => void;
   onEdit?: (id: number) => void;
@@ -32,6 +36,10 @@ export function ReportCard({
   content,
   status,
   rejectionNote,
+  rejectedBy,
+  rejectedAt,
+  approvedBy,
+  approvedAt,
   isSelected = false,
   onToggleSelect,
   onEdit,
@@ -121,8 +129,7 @@ export function ReportCard({
           {/* Variant: Status = Approved */}
           {status === 'approved' && (
             <div className="report-approved-footer">
-              <button 
-                className="view-details-link"
+              <button  className="view-details-link"
                 onClick={() => onViewDetails?.(id)}
               >
                 <span>View Full Report</span>
@@ -131,6 +138,11 @@ export function ReportCard({
               <div className="report-status-badge approved">
                 <CheckCircle size={16} />
                 <span>Approved</span>
+                {approvedBy && approvedAt && (
+                  <span style={{ color: '#9CA3AF', fontSize: '13px', fontWeight: 400, marginLeft: '8px' }}>
+                    • {approvedBy} • {approvedAt}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -148,6 +160,11 @@ export function ReportCard({
               <div className="report-status-badge rejected">
                 <AlertTriangle size={16} />
                 <span>Rejected</span>
+                {rejectedBy && rejectedAt && (
+                  <span style={{ color: '#9CA3AF', fontSize: '13px', fontWeight: 400, marginLeft: '8px' }}>
+                    • {rejectedBy} • {rejectedAt}
+                  </span>
+                )}
               </div>
             </div>
           )}

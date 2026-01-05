@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FileText, CheckCircle, X, Send, Calendar, Filter, Eye, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { FileText, CheckCircle, X, Send, Calendar, Filter, Eye, Check, Plus } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Dropdown_Dark } from '../ui/Dropdown_Dark';
 import { DatePickerModal } from '../ui/DatePickerModal';
@@ -8,6 +8,11 @@ import { EditReportModal, ReportUpdates } from '../ui/EditReportModal';
 import { ReportDetailsModal } from '../ui/ReportDetailsModal';
 import { PDFPreviewModal } from '../ui/PDFPreviewModal';
 import { EmailConfirmModal } from '../ui/EmailConfirmModal';
+import { SelectReportTypeModal } from '../ui/SelectReportTypeModal';
+import { CreateReportModal } from '../ui/CreateReportModal';
+import { EnhancedReportModal } from '../ui/EnhancedReportModal';
+import { useAppState } from '../../contexts/AppStateContext';
+import { toast } from 'sonner';
 import '../../reports.css';
 
 export type ClientType = 'building-a' | 'global-logistics' | 'tech-innovations';
@@ -15,6 +20,7 @@ export type ClientType = 'building-a' | 'global-logistics' | 'tech-innovations';
 interface Report {
   id: number;
   referenceId: string;
+  caseId?: string;            // Auto-generated Case ID (e.g., "#IR-2026-8492")
   type: 'DAR' | 'Incident';
   priority: 'normal' | 'high';
   guardName: string;
@@ -23,6 +29,20 @@ interface Report {
   content: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionNote?: string;
+  approvedBy?: string;
+  approvedByRole?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedByRole?: string;
+  rejectedAt?: string;
+  location?: string;
+  attachments?: Array<{ id: number; url: string; name: string }>;
+  date?: string;              // Date of Incident (e.g., "Jan 04, 2026")
+  time?: string;
+  incidentType?: string;
+  urgency?: string;
+  policeCalled?: string;
+  narrativeOnly?: string;
 }
 
 interface ClientPackage {
@@ -39,7 +59,6 @@ interface ClientPackage {
 
 interface ReportsProps {
   reports: Report[];
-  setReports: (reports: Report[]) => void;
   onNavigateToReport?: (clientType: ClientType) => void;
   is_IR2024_1156_Approved: boolean;
   setIs_IR2024_1156_Approved: (value: boolean) => void;
@@ -48,166 +67,6 @@ interface ReportsProps {
   is_DAR446_Approved: boolean;
   setIs_DAR446_Approved: (value: boolean) => void;
 }
-
-const mockReports: Report[] = [
-  {
-    id: 1,
-    referenceId: '#IR-2024-1156',
-    type: 'Incident',
-    priority: 'high',
-    guardName: 'John Smith',
-    site: 'Building A - Main Entrance',
-    timestamp: 'Dec 30, 2025 • 11:45 PM',
-    content: 'Observed unauthorized individual attempting to enter through rear loading dock. Individual was escorted off premises. No physical altercation occurred. Police were notified and arrived at 23:52. Incident number #IR-2024-1156.',
-    status: 'pending'
-  },
-  {
-    id: 2,
-    referenceId: '#DAR-445',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Maria Garcia',
-    site: 'Parking Structure B',
-    timestamp: 'Dec 30, 2025 • 10:30 PM',
-    content: 'Completed hourly patrol of all 5 levels. All emergency exits secure. Lighting operational on all floors. No vehicles observed in restricted areas. Total vehicle count: 47 vehicles. Weather: Clear, temperature 68°F.',
-    status: 'pending'
-  },
-  {
-    id: 3,
-    referenceId: '#IR-2024-1157',
-    type: 'Incident',
-    priority: 'high',
-    guardName: 'Robert Chen',
-    site: 'Office Tower C',
-    timestamp: 'Dec 30, 2025 • 9:15 PM',
-    content: 'Fire alarm activated on 12th floor at 21:10. Initiated evacuation protocol per SOP. Fire department notified and arrived at 21:18. Cause determined to be burnt popcorn in break room. All clear given at 21:35. Building re-occupied at 21:40.',
-    status: 'pending'
-  },
-  {
-    id: 4,
-    referenceId: '#DAR-446',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Sarah Johnson',
-    site: 'Retail Complex D',
-    timestamp: 'Dec 30, 2025 • 8:00 PM',
-    content: 'Evening shift commenced at 20:00. Perimeter check completed - all doors secured. Video surveillance systems operational. Received delivery at loading dock 20:45 - verified credentials and escorted vendor. No incidents to report.',
-    status: 'pending'
-  },
-  {
-    id: 5,
-    referenceId: '#IR-2024-1158',
-    type: 'Incident',
-    priority: 'normal',
-    guardName: 'Michael Torres',
-    site: 'Building A - Lobby',
-    timestamp: 'Dec 30, 2025 • 7:30 PM',
-    content: 'Assisted visitor who locked keys in vehicle. Contacted parking management. Locksmith arrived at 19:45. Issue resolved. Visitor departed at 20:00. No damage to property.',
-    status: 'rejected',
-    rejectionNote: 'Please attach a photo of the damaged lock.'
-  },
-  {
-    id: 6,
-    referenceId: '#DAR-447',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Lisa Anderson',
-    site: 'Distribution Center E',
-    timestamp: 'Dec 29, 2025 • 6:45 PM',
-    content: 'Shift change completed. Equipment inspection performed - all radios, flashlights, and emergency equipment operational. Logbook reviewed with outgoing guard. Building secure. Temperature monitoring systems showing normal readings.',
-    status: 'pending'
-  },
-  {
-    id: 7,
-    referenceId: '#IR-2024-1159',
-    type: 'Incident',
-    priority: 'high',
-    guardName: 'David Martinez',
-    site: 'Medical Plaza F',
-    timestamp: 'Dec 29, 2025 • 5:20 PM',
-    content: 'Medical emergency in suite 304. Visitor experienced chest pain. Called 911 at 17:18. Administered first aid and remained with patient until paramedics arrived at 17:24. Patient transported to hospital. Family notified.',
-    status: 'pending'
-  },
-  {
-    id: 8,
-    referenceId: '#DAR-448',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Jessica Lee',
-    site: 'Corporate Campus G',
-    timestamp: 'Dec 29, 2025 • 4:15 PM',
-    content: 'Afternoon patrol completed. Inspected all perimeter gates - functioning properly. Parking lot inspection revealed no suspicious activity. Greeted employees during shift change. Weather conditions: Partly cloudy, no weather advisories.',
-    status: 'rejected',
-    rejectionNote: 'Report missing timestamp for gate inspections. Please include specific times for each checkpoint.'
-  },
-  {
-    id: 9,
-    referenceId: '#IR-2024-1160',
-    type: 'Incident',
-    priority: 'normal',
-    guardName: 'Thomas Brown',
-    site: 'Warehouse H',
-    timestamp: 'Dec 29, 2025 • 3:00 PM',
-    content: 'Water leak detected in northwest corner of warehouse. Immediately contacted facilities management. Area cordoned off with caution tape. Maintenance arrived at 15:15. Leak source identified and repairs initiated. No inventory damage.',
-    status: 'pending'
-  },
-  {
-    id: 10,
-    referenceId: '#DAR-449',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Amanda Wilson',
-    site: 'Research Facility I',
-    timestamp: 'Dec 28, 2025 • 2:30 PM',
-    content: 'Mid-day security check completed. All access control systems operational. Verified badge reader functionality at all entry points. Escorted contractor crew working on HVAC system. Crew departed at 14:45. All areas secured.',
-    status: 'pending'
-  },
-  {
-    id: 11,
-    referenceId: '#IR-2024-1161',
-    type: 'Incident',
-    priority: 'high',
-    guardName: 'Christopher Davis',
-    site: 'Data Center J',
-    timestamp: 'Dec 28, 2025 • 1:45 PM',
-    content: 'Unauthorized access attempt detected at server room. Individual claimed to be new IT contractor but could not provide valid credentials. Access denied. IT director contacted and confirmed individual not authorized. Subject escorted off property. Incident logged.',
-    status: 'rejected',
-    rejectionNote: 'Incident report incomplete. Please include subject description, vehicle information, and follow-up actions taken.'
-  },
-  {
-    id: 12,
-    referenceId: '#DAR-450',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Emily Taylor',
-    site: 'Building A - Rooftop',
-    timestamp: 'Dec 27, 2025 • 12:30 PM',
-    content: 'Rooftop access inspection performed. All doors properly secured. HVAC equipment area clear of debris. No unauthorized personnel observed. Bird deterrent systems functioning. Weather monitoring equipment operational.',
-    status: 'approved'
-  },
-  {
-    id: 13,
-    referenceId: '#IR-2024-1162',
-    type: 'Incident',
-    priority: 'high',
-    guardName: 'Brandon White',
-    site: 'Shopping Mall K',
-    timestamp: 'Dec 26, 2025 • 11:15 AM',
-    content: 'Shoplifting incident reported by retail staff. Suspect detained at store exit. Police called and arrived at 11:22. Subject arrested without incident. Store manager provided video footage. Incident report filed with local PD. Case #SL-2025-0891.',
-    status: 'approved'
-  },
-  {
-    id: 14,
-    referenceId: '#DAR-451',
-    type: 'DAR',
-    priority: 'normal',
-    guardName: 'Nicole Green',
-    site: 'Financial District L',
-    timestamp: 'Dec 26, 2025 • 10:00 AM',
-    content: 'Morning shift security briefing completed. All entry points checked and verified secure. Badge access system tested and operational. Visitor log reviewed - 23 visitors checked in/out previous night. All contractors properly escorted.',
-    status: 'approved'
-  }
-];
 
 const mockPackages: ClientPackage[] = [
   {
@@ -239,7 +98,8 @@ const mockPackages: ClientPackage[] = [
   }
 ];
 
-export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_1156_Approved, setIs_IR2024_1156_Approved, is_DAR445_Approved, setIs_DAR445_Approved, is_DAR446_Approved, setIs_DAR446_Approved }: ReportsProps) {
+export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, setIs_IR2024_1156_Approved, is_DAR445_Approved, setIs_DAR445_Approved, is_DAR446_Approved, setIs_DAR446_Approved }: ReportsProps) {
+  const { currentUser, syncReportToGuardVault, broadcastVaultEntry, addReport, updateReportStatus, updateReport, getPreviewId } = useAppState();
   const [packages, setPackages] = useState<ClientPackage[]>(mockPackages);
   const [selectedReportIds, setSelectedReportIds] = useState<Set<number>>(new Set());
   const [dateRange, setDateRange] = useState<string>('last-7-days');
@@ -257,6 +117,60 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailPackage, setEmailPackage] = useState<ClientPackage | null>(null);
   const [sentPackageIds, setSentPackageIds] = useState<Set<number>>(new Set());
+  const [isSelectReportTypeModalOpen, setIsSelectReportTypeModalOpen] = useState(false);
+  const [isCreateReportModalOpen, setIsCreateReportModalOpen] = useState(false);
+  const [createReportType, setCreateReportType] = useState<'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon'>('incident');
+  const [generatedCaseId, setGeneratedCaseId] = useState<string>(''); // Auto-generated Case ID for current report
+  const [isEnhancedReportModalOpen, setIsEnhancedReportModalOpen] = useState(false);
+  const [enhancedReportMode, setEnhancedReportMode] = useState<{
+    type: 'maintenance' | 'incident' | 'dar' | 'disciplinary' | 'shift-passon';
+    title: string;
+    reportIdPrefix: string;
+    themeColor: string;
+    recipientRole: string;
+    narrativeLabel: string;
+    submitButtonText: string;
+    icon: string;
+  } | null>(null);
+
+  // Persist Client Outbox state based on linked report's actual status
+  // Trigger: On component mount/load and whenever reports change
+  useEffect(() => {
+    // Look up the actual status of report #IR-2024-1156
+    const linkedReport = reports.find(r => r.referenceId === '#IR-2024-1156');
+    
+    if (linkedReport) {
+      // Logic Check: IF Report #IR-2024-1156 status is 'Approved'
+      if (linkedReport.status === 'approved') {
+        // Set Outbox Status: 'READY' (Green Badge)
+        // Button State: Enable 'Send Client Report' (Blue)
+        setPackages(prevPackages => prevPackages.map(pkg => ({
+          ...pkg,
+          reports: pkg.reports.map(report => 
+            report.id === '#IR-2024-1156' ? { ...report, status: 'ready' as const } : report
+          )
+        })));
+        
+        // Update the state variable to keep it in sync
+        setIs_IR2024_1156_Approved(true);
+      } else {
+        // ELSE (If status is Pending/Rejected)
+        // Set Outbox Status: 'AWAITING APPROVAL' (Orange Badge)
+        // Button State: Disable 'Send Client Report' (Grey)
+        setPackages(prevPackages => prevPackages.map(pkg => ({
+          ...pkg,
+          reports: pkg.reports.map(report => 
+            report.id === '#IR-2024-1156' ? { ...report, status: 'pending' as const } : report
+          )
+        })));
+        
+        // Update the state variable to keep it in sync
+        if (linkedReport.status !== 'approved') {
+          setIs_IR2024_1156_Approved(false);
+        }
+      }
+    }
+  }, [reports, setIs_IR2024_1156_Approved]); // Re-run when reports change
 
   // Helper function to determine if report matches date filter
   const matchesDateFilter = (report: Report, index: number): boolean => {
@@ -345,9 +259,31 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
   };
 
   const handleReject = (reportId: number) => {
-    setReports(reports.map(r => 
-      r.id === reportId ? { ...r, status: 'rejected' as const, rejectionNote: 'Not applicable' } : r
-    ));
+    // Hard-coded user identity - self-contained rejection logic
+    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+    
+    // Create real-time timestamp
+    const time = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    
+    // Construct complete signature string
+    const signature = `by ${currentUser.role} ${currentUser.name}`;
+    const rejectedAt = time;
+    
+    updateReport(reportId, {
+      status: 'rejected' as const, 
+      rejectionNote: 'Not applicable',
+      rejectedBy: signature,
+      rejectedByRole: currentUser.role,
+      rejectedAt: rejectedAt
+    });
+    
     setSelectedReportIds(prev => {
       const newSet = new Set(prev);
       newSet.delete(reportId);
@@ -359,10 +295,30 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
     // Find the report being approved to check its reference ID
     const approvedReport = reports.find(r => r.id === reportId);
     
-    // Update the report status to approved
-    setReports(reports.map(r => 
-      r.id === reportId ? { ...r, status: 'approved' as const } : r
-    ));
+    // Hard-coded user identity - self-contained approval logic
+    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+    
+    // Create real-time timestamp
+    const time = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    
+    // Construct complete signature string
+    const signature = `by ${currentUser.role} ${currentUser.name}`;
+    const approvedAt = time;
+    
+    // Update the report status to approved with audit trail
+    updateReport(reportId, {
+      status: 'approved' as const,
+      approvedBy: signature,
+      approvedByRole: currentUser.role,
+      approvedAt: approvedAt
+    });
     
     // Update state variables and Client Outbox based on approved report
     if (approvedReport?.referenceId) {
@@ -384,6 +340,59 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
           report.id === refId ? { ...report, status: 'ready' as const } : report
         )
       })));
+      
+      // SyncToVault: File this approved report to the guard's employee history
+      if (approvedReport) {
+        syncReportToGuardVault(approvedReport.guardName, {
+          reportId: approvedReport.referenceId,
+          reportType: approvedReport.type,
+          status: 'approved',
+          approvedBy: signature,
+          approvedAt: approvedAt,
+          site: approvedReport.site,
+          timestamp: approvedReport.timestamp
+        });
+        
+        // Determine the correct Vault category based on report ID prefix or title
+        let vaultCategory = 'Daily Reports'; // Default
+        
+        // IF Title contains 'Incident' OR ID starts with '#IR': Set vaultCategory = 'Incident Reports'
+        if (approvedReport.type === 'Incident' || approvedReport.referenceId.startsWith('#IR')) {
+          vaultCategory = 'Incident Reports';
+        }
+        // IF Title contains 'Daily Activity' OR ID starts with '#DAR': Set vaultCategory = 'Daily Reports'
+        else if (approvedReport.type === 'DAR' || approvedReport.referenceId.startsWith('#DAR')) {
+          vaultCategory = 'Daily Reports';
+        }
+        // Check for maintenance requests
+        else if (approvedReport.referenceId.startsWith('#MAINT')) {
+          vaultCategory = 'Maintenance Reports';
+        }
+        // Check for disciplinary forms
+        else if (approvedReport.referenceId.startsWith('#DISC') || approvedReport.referenceId.startsWith('#WU')) {
+          vaultCategory = 'Internal Reports';
+        }
+        // Check for shift pass-on logs
+        else if (approvedReport.referenceId.startsWith('#PASS')) {
+          vaultCategory = 'Shift Logs';
+        }
+        
+        // Broadcast Global Vault Entry - Set newVaultEntry = true & store latestReportData
+        const reportTypeName = approvedReport.type === 'DAR' ? 'Daily Activity Report' : 'Incident Report';
+        broadcastVaultEntry({
+          name: `${reportTypeName} ${approvedReport.referenceId}`,
+          user: approvedReport.guardName,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          status: 'Active',
+          reportId: approvedReport.referenceId,
+          reportType: approvedReport.type,
+          site: approvedReport.site,
+          category: vaultCategory // Send the correct category to the Vault
+        });
+        
+        // Show toast notification
+        toast.success(`✓ Report Approved & Filed to ${approvedReport.guardName}'s Personnel Record.`);
+      }
     }
     
     setSelectedReportIds(prev => {
@@ -416,13 +425,35 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
   const handleBatchApprove = () => {
     if (selectedReportIds.size === 0) return;
     
+    // Hard-coded user identity - self-contained approval logic
+    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+    
+    // Create real-time timestamp
+    const time = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    
+    // Construct complete signature string
+    const signature = `by ${currentUser.role} ${currentUser.name}`;
+    const approvedAt = time;
+    
     // Get all reports being approved
     const approvedReports = reports.filter(r => selectedReportIds.has(r.id));
     
-    // Update all selected reports to approved status
-    setReports(reports.map(r => 
-      selectedReportIds.has(r.id) ? { ...r, status: 'approved' as const } : r
-    ));
+    // Update all selected reports to approved status with signature
+    approvedReports.forEach(report => {
+      updateReport(report.id, {
+        status: 'approved' as const,
+        approvedBy: signature,
+        approvedByRole: currentUser.role,
+        approvedAt: approvedAt
+      });
+    });
     
     // Update state variables and Client Outbox for each approved report
     approvedReports.forEach(report => {
@@ -503,7 +534,7 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
     });
     
     // Show success toast (in a real app)
-    console.log('Email sent successfully for package:', emailPackage.id);
+    toast.success('Email sent successfully for package:', emailPackage.id);
   };
 
   const handleDateRangeChange = (value: string) => {
@@ -530,6 +561,140 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
 
   const handleCustomRangeClick = () => {
     setIsDatePickerOpen(true);
+  };
+
+  const handleCreateReportClick = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => {
+    setCreateReportType(type);
+    
+    // Generate sequential Case ID based on report type using getPreviewId
+    let previewType: 'Incident' | 'DAR' = 'Incident';
+    
+    if (type === 'incident' || type === 'disciplinary' || type === 'shift-passon') {
+      previewType = 'Incident';
+    } else if (type === 'dar' || type === 'maintenance') {
+      previewType = 'DAR';
+    }
+    
+    const newCaseId = getPreviewId(previewType);
+    setGeneratedCaseId(newCaseId);
+    
+    setIsCreateReportModalOpen(true);
+    setIsSelectReportTypeModalOpen(false);
+  };
+
+  const handleCreateReport = (reportData: { 
+    content: string; 
+    site: string; 
+    priority: 'normal' | 'high';
+    location?: string;
+    attachments?: Array<{ id: number; url: string; name: string }>;
+    date?: string;
+    time?: string;
+    incidentType?: string;
+    urgency?: string;
+    policeCalled?: string;
+    narrativeOnly?: string;
+  }) => {
+    // Determine report type based on createReportType
+    let type: 'DAR' | 'Incident' = 'DAR';
+    
+    if (createReportType === 'incident') {
+      type = 'Incident';
+    } else if (createReportType === 'dar') {
+      type = 'DAR';
+    } else if (createReportType === 'maintenance') {
+      type = 'DAR'; // Maintenance is a type of DAR
+    } else if (createReportType === 'disciplinary') {
+      type = 'Incident'; // Disciplinary is a type of incident
+    } else if (createReportType === 'shift-passon') {
+      type = 'Incident'; // Shift Pass-On is a type of incident
+    }
+    
+    // Format the date if provided (convert "2026-01-04" to "Jan 04, 2026")
+    let formattedDate = undefined;
+    if (reportData.date) {
+      const dateObj = new Date(reportData.date);
+      formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    }
+    
+    // Use global addReport function which handles ID generation and timestamp
+    addReport({
+      caseId: generatedCaseId,
+      type,
+      priority: reportData.priority,
+      guardName: currentUser.name,
+      site: reportData.site,
+      content: reportData.content,
+      status: 'pending',
+      location: reportData.location,
+      attachments: reportData.attachments || [],
+      date: formattedDate,
+      time: reportData.time,
+      incidentType: reportData.incidentType,
+      urgency: reportData.urgency,
+      policeCalled: reportData.policeCalled,
+      narrativeOnly: reportData.narrativeOnly
+    });
+    
+    // Show success toast
+    toast.success(`✓ ${createReportType === 'incident' ? 'Incident Report' : createReportType === 'dar' ? 'Daily Activity Report' : createReportType === 'maintenance' ? 'Maintenance Request' : createReportType === 'disciplinary' ? 'Disciplinary Action' : 'Shift Pass-On'} created successfully.`);
+  };
+
+  // Handler for opening Maintenance Request modal (programmed card)
+  const handleOpenMaintenanceRequest = () => {
+    const maintenanceMode = {
+      type: 'maintenance' as const,
+      title: 'Maintenance Request',
+      reportIdPrefix: '#MR',
+      themeColor: '#F59E0B',
+      recipientRole: 'Facility Manager',
+      narrativeLabel: 'Issue Description',
+      submitButtonText: 'Submit Work Order',
+      icon: '🛠️'
+    };
+    setEnhancedReportMode(maintenanceMode);
+    setIsEnhancedReportModalOpen(true);
+  };
+
+  // Handler for opening Incident Report modal with industry-standard fields
+  const handleOpenIncidentReport = () => {
+    const incidentMode = {
+      type: 'incident' as const,
+      title: 'Incident Report',
+      reportIdPrefix: '#IR',
+      themeColor: '#EF4444',
+      recipientRole: 'Client Security Contact',
+      narrativeLabel: 'Detailed Narrative',
+      submitButtonText: 'Submit Incident Report',
+      icon: '🚨'
+    };
+    setEnhancedReportMode(incidentMode);
+    setIsEnhancedReportModalOpen(true);
+  };
+
+  // Handler for submitting enhanced report
+  const handleEnhancedReportSubmit = (data: {
+    reportId: string;
+    title: string;
+    content: string;
+    site: string;
+    priority: 'normal' | 'high';
+    themeColor: string;
+    recipientRole: string;
+  }) => {
+    // Use global addReport function (which auto-generates ID and timestamp)
+    addReport({
+      caseId: data.reportId,
+      type: 'DAR', // Maintenance is categorized as DAR
+      priority: data.priority,
+      guardName: currentUser.name,
+      site: data.site,
+      content: data.content,
+      status: 'pending'
+    });
+    
+    // Show success toast
+    toast.success(`✓ ${data.title} ${data.reportId} submitted successfully.`);
   };
 
   return (
@@ -580,7 +745,34 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
             />
           </div>
         </div>
+        
+        <div className="toolbar-actions">
+          <button 
+            className="create-report-btn"
+            onClick={() => setIsSelectReportTypeModalOpen(true)}
+          >
+            <Plus size={16} />
+            <span>Create Report</span>
+          </button>
+        </div>
       </div>
+      
+      {/* Select Report Type Modal */}
+      <SelectReportTypeModal
+        isOpen={isSelectReportTypeModalOpen}
+        onClose={() => setIsSelectReportTypeModalOpen(false)}
+        onSelectType={handleCreateReportClick}
+      />
+      
+      {/* Create Report Modal */}
+      <CreateReportModal
+        isOpen={isCreateReportModalOpen}
+        onClose={() => setIsCreateReportModalOpen(false)}
+        reportType={createReportType}
+        officerName={currentUser.name}
+        caseId={generatedCaseId}
+        onSubmit={handleCreateReport}
+      />
       
       <div className="reports-layout">
         {/* Left Column: Review Queue */}
@@ -649,6 +841,10 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
                 content={report.content}
                 status={report.status}
                 rejectionNote={report.rejectionNote}
+                rejectedBy={report.rejectedBy}
+                rejectedAt={report.rejectedAt}
+                approvedBy={report.approvedBy}
+                approvedAt={report.approvedAt}
                 isSelected={selectedReportIds.has(report.id)}
                 onToggleSelect={handleToggleSelect}
                 onEdit={() => handleEdit(report)}
@@ -770,18 +966,37 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
         onClose={() => setIsEditModalOpen(false)}
         report={editingReport}
         onSave={(reportId, updates) => {
-          setReports(reports.map(r => 
-            r.id === reportId ? { ...r, ...updates } : r
-          ));
+          updateReport(reportId, updates);
         }}
         onApprove={(reportId, updates) => {
+          // Hard-coded user identity - self-contained approval logic
+          const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+          
+          // Create real-time timestamp
+          const time = new Date().toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: true
+          });
+          
+          // Construct complete signature string
+          const signature = `by ${currentUser.role} ${currentUser.name}`;
+          const approvedAt = time;
+          
           // Find the report being approved to check its reference ID
           const approvedReport = reports.find(r => r.id === reportId);
           
-          // Update the report with edits AND set status to approved
-          setReports(reports.map(r => 
-            r.id === reportId ? { ...r, ...updates, status: 'approved' as const } : r
-          ));
+          // Update the report with edits AND set status to approved with signature
+          updateReport(reportId, {
+            ...updates, 
+            status: 'approved' as const,
+            approvedBy: signature,
+            approvedByRole: currentUser.role,
+            approvedAt: approvedAt
+          });
           
           // Update state variables and Client Outbox based on approved report
           if (approvedReport?.referenceId) {
@@ -803,18 +1018,88 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
                 report.id === refId ? { ...report, status: 'ready' as const } : report
               )
             })));
+            
+            // SyncToVault: File this approved report to the guard's employee history
+            if (approvedReport) {
+              syncReportToGuardVault(approvedReport.guardName, {
+                reportId: approvedReport.referenceId,
+                reportType: approvedReport.type,
+                status: 'approved',
+                approvedBy: signature,
+                approvedAt: approvedAt,
+                site: approvedReport.site,
+                timestamp: approvedReport.timestamp
+              });
+              
+              // Determine the correct Vault category based on report ID prefix or title
+              let vaultCategory = 'Daily Reports'; // Default
+              
+              // IF Title contains 'Incident' OR ID starts with '#IR': Set vaultCategory = 'Incident Reports'
+              if (approvedReport.type === 'Incident' || approvedReport.referenceId.startsWith('#IR')) {
+                vaultCategory = 'Incident Reports';
+              }
+              // IF Title contains 'Daily Activity' OR ID starts with '#DAR': Set vaultCategory = 'Daily Reports'
+              else if (approvedReport.type === 'DAR' || approvedReport.referenceId.startsWith('#DAR')) {
+                vaultCategory = 'Daily Reports';
+              }
+              // Check for maintenance requests
+              else if (approvedReport.referenceId.startsWith('#MAINT')) {
+                vaultCategory = 'Maintenance Reports';
+              }
+              // Check for disciplinary forms
+              else if (approvedReport.referenceId.startsWith('#DISC') || approvedReport.referenceId.startsWith('#WU')) {
+                vaultCategory = 'Internal Reports';
+              }
+              // Check for shift pass-on logs
+              else if (approvedReport.referenceId.startsWith('#PASS')) {
+                vaultCategory = 'Shift Logs';
+              }
+              
+              // Broadcast Global Vault Entry - Set newVaultEntry = true & store latestReportData
+              const reportTypeName = approvedReport.type === 'DAR' ? 'Daily Activity Report' : 'Incident Report';
+              broadcastVaultEntry({
+                name: `${reportTypeName} ${approvedReport.referenceId}`,
+                user: approvedReport.guardName,
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                status: 'Active',
+                reportId: approvedReport.referenceId,
+                reportType: approvedReport.type,
+                site: approvedReport.site,
+                category: vaultCategory // Send the correct category to the Vault
+              });
+              
+              // Show toast notification
+              toast.success(`✓ Report Approved & Filed to ${approvedReport.guardName}'s Personnel Record.`);
+            }
           }
         }}
         onReject={(reportId, updates) => {
-          // Update the report with any edits made during review AND set status to rejected
-          setReports(reports.map(r => 
-            r.id === reportId ? { 
-              ...r, 
-              ...updates, 
-              status: 'rejected' as const,
-              rejectionNote: updates.adminNote || 'Rejected by supervisor'
-            } : r
-          ));
+          // Hard-coded user identity - self-contained rejection logic
+          const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+          
+          // Create real-time timestamp
+          const time = new Date().toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: true
+          });
+          
+          // Construct complete signature string
+          const signature = `by ${currentUser.role} ${currentUser.name}`;
+          const rejectedAt = time;
+          
+          // Update the report with any edits made during review AND set status to rejected with signature
+          updateReport(reportId, {
+            ...updates, 
+            status: 'rejected' as const,
+            rejectionNote: updates.adminNote || 'Rejected by supervisor',
+            rejectedBy: signature,
+            rejectedByRole: currentUser.role,
+            rejectedAt: rejectedAt
+          });
         }}
       />
 
@@ -844,6 +1129,17 @@ export function Reports({ reports, setReports, onNavigateToReport, is_IR2024_115
         sentPackageIds={sentPackageIds}
         onEmailSend={handleEmailSend}
       />
+
+      {/* Enhanced Report Modal */}
+      {enhancedReportMode && (
+        <EnhancedReportModal
+          isOpen={isEnhancedReportModalOpen}
+          onClose={() => setIsEnhancedReportModalOpen(false)}
+          mode={enhancedReportMode}
+          officerName={currentUser.name}
+          onSubmit={handleEnhancedReportSubmit}
+        />
+      )}
     </div>
   );
 }

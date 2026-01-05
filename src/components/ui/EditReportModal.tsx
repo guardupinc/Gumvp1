@@ -15,6 +15,15 @@ interface EditReportModalProps {
     type: 'DAR' | 'Incident';
     site: string;
     content: string;
+    location?: string;
+    attachments?: Array<{ id: number; url: string; name: string }>;
+    time?: string;
+    date?: string;
+    incidentType?: string;
+    urgency?: string;
+    policeCalled?: string;
+    narrativeOnly?: string;
+    caseId?: string;
   } | null;
 }
 
@@ -38,27 +47,20 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
   const [narrative, setNarrative] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [notifyGuard, setNotifyGuard] = useState(false);
-  const [attachments, setAttachments] = useState<Attachment[]>([
-    { 
-      id: 1, 
-      url: 'https://images.unsplash.com/photo-1561756719-55231c95c511?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkb29yJTIwbG9jayUyMHNlY3VyaXR5fGVufDF8fHx8MTc2NzA5MDI4NHww&ixlib=rb-4.1.0&q=80&w=1080', 
-      name: 'door-lock.jpg' 
-    },
-    { 
-      id: 2, 
-      url: 'https://images.unsplash.com/photo-1760210211349-15b4ad2cf6c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidWlsZGluZyUyMGhhbGx3YXklMjBjb3JyaWRvcnxlbnwxfHx8fDE3NjcxNDcyNDR8MA&ixlib=rb-4.1.0&q=80&w=1080', 
-      name: 'hallway.jpg' 
-    }
-  ]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   // Update form fields when report changes
   useEffect(() => {
     if (report) {
       setCategory(report.type);
-      setLocation(report.site);
-      setNarrative(report.content);
+      // Use report.location if available, otherwise show "Unknown Location"
+      setLocation(report.location || 'Unknown Location');
+      // Use narrativeOnly if available, otherwise fall back to content
+      setNarrative(report.narrativeOnly || report.content);
       setAdminNote('');
       setNotifyGuard(false);
+      // Set attachments from report data, or empty array if none
+      setAttachments(report.attachments || []);
     }
   }, [report]);
 
@@ -101,10 +103,14 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
     // Reset to original values
     if (report) {
       setCategory(report.type);
-      setLocation(report.site);
-      setNarrative(report.content);
+      // Use report.location if available, otherwise show "Unknown Location"
+      setLocation(report.location || 'Unknown Location');
+      // Use narrativeOnly if available, otherwise fall back to content
+      setNarrative(report.narrativeOnly || report.content);
       setAdminNote('');
       setNotifyGuard(false);
+      // Set attachments from report data, or empty array if none
+      setAttachments(report.attachments || []);
     }
     onClose();
   };
@@ -124,7 +130,7 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
       <div className="edit-report-modal supervisor-review">
         {/* Header */}
         <div className="edit-report-modal-header">
-          <h2>Supervisor Review: {report.referenceId}</h2>
+          <h2>Supervisor Review: {report?.referenceId || 'New Report'}</h2>
           <button className="edit-report-modal-close" onClick={handleCancel}>
             <X size={20} />
           </button>
@@ -158,6 +164,30 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             />
           </div>
 
+          {/* Metadata Grid - 5 Columns (Date added at far left) */}
+          <div className="metadata-grid">
+            <div className="metadata-field">
+              <label className="metadata-label">Date of Incident</label>
+              <div className="metadata-value">{report.date || 'N/A'}</div>
+            </div>
+            <div className="metadata-field">
+              <label className="metadata-label">Time of Incident</label>
+              <div className="metadata-value">{report.time || 'N/A'}</div>
+            </div>
+            <div className="metadata-field">
+              <label className="metadata-label">Incident Type</label>
+              <div className="metadata-value">{report.incidentType || 'N/A'}</div>
+            </div>
+            <div className="metadata-field">
+              <label className="metadata-label">Urgency</label>
+              <div className="metadata-value metadata-urgency">{report.urgency || 'N/A'}</div>
+            </div>
+            <div className="metadata-field">
+              <label className="metadata-label">Police Called?</label>
+              <div className="metadata-value metadata-police">{report.policeCalled || 'N/A'}</div>
+            </div>
+          </div>
+
           {/* Narrative Field - Shorter */}
           <div className="edit-report-form-field">
             <label htmlFor="report-narrative">Narrative</label>
@@ -174,21 +204,25 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
           {/* Evidence Section */}
           <div className="edit-report-form-field">
             <label>Attachments / Evidence</label>
-            <div className="evidence-thumbnails">
-              {attachments.map((attachment) => (
-                <div key={attachment.id} className="evidence-thumbnail">
-                  <img src={attachment.url} alt={attachment.name} />
-                  <button 
-                    className="evidence-remove-btn"
-                    onClick={() => handleRemoveAttachment(attachment.id)}
-                    title="Remove attachment"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <div className="evidence-name">{attachment.name}</div>
-                </div>
-              ))}
-            </div>
+            {attachments.length > 0 ? (
+              <div className="evidence-thumbnails">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="evidence-thumbnail">
+                    <img src={attachment.url} alt={attachment.name} />
+                    <button 
+                      className="evidence-remove-btn"
+                      onClick={() => handleRemoveAttachment(attachment.id)}
+                      title="Remove attachment"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <div className="evidence-name">{attachment.name}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="no-evidence-message">No evidence attached</div>
+            )}
           </div>
 
           {/* Admin Note Field - Distinct Background */}

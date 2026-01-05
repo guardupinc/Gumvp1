@@ -298,6 +298,18 @@
   flex-wrap: wrap;
 }
 
+.no-evidence-message {
+  padding: 40px 20px;
+  text-align: center;
+  color: #6B7280;
+  font-size: 14px;
+  font-weight: 500;
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-style: italic;
+}
+
 .evidence-thumbnail {
   position: relative;
   width: 140px;
@@ -404,4 +416,54 @@
   cursor: pointer;
   accent-color: #2E7CF6;
   border-radius: 4px;
+}
+
+/* Metadata Grid - 5 Column Layout (Date | Time | Type | Urgency | Police) */
+.metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.metadata-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metadata-label {
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metadata-value {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 10px;
+  background-color: #0B1220;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+/* Urgency field - Red text for high urgency */
+.metadata-urgency {
+  color: #EF4444;
+  font-weight: 600;
+}
+
+/* Police Called field - Bold text */
+.metadata-police {
+  font-weight: 700;
 }

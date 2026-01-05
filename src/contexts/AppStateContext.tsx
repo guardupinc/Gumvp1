@@ -4,6 +4,42 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 // TYPE DEFINITIONS
 // ============================================================================
 
+export interface CurrentUser {
+  id: number;
+  name: string;
+  role: string;
+  email: string;
+}
+
+export interface GlobalReport {
+  id: number;
+  referenceId: string;
+  caseId?: string;
+  type: 'DAR' | 'Incident';
+  priority: 'normal' | 'high';
+  guardName: string;
+  site: string;
+  timestamp: string;
+  content: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionNote?: string;
+  clientName?: string;
+  approvedBy?: string;
+  approvedByRole?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedByRole?: string;
+  rejectedAt?: string;
+  location?: string;
+  attachments?: Array<{ id: number; url: string; name: string }>;
+  date?: string;
+  time?: string;
+  incidentType?: string;
+  urgency?: string;
+  policeCalled?: string;
+  narrativeOnly?: string;
+}
+
 export interface ActiveGuard {
   id: number;
   name: string;
@@ -33,6 +69,16 @@ export interface IncidentLog {
   actions?: string[];
 }
 
+export interface EmployeeHistoryRecord {
+  reportId: string;
+  reportType: 'DAR' | 'Incident';
+  status: 'approved' | 'rejected';
+  approvedBy: string;
+  approvedAt: string;
+  site: string;
+  timestamp: string;
+}
+
 export interface RosterGuard {
   id: number;
   name: string;
@@ -52,6 +98,7 @@ export interface RosterGuard {
   dateOfHire?: string;
   roleClassification?: string;
   primarySite?: string;
+  employeeHistory?: EmployeeHistoryRecord[];
   securityGuardCard?: {
     expiryDate: string;
     status: 'valid' | 'expiring' | 'expired';
@@ -75,6 +122,17 @@ export interface SiteData {
   };
 }
 
+export interface LatestReportData {
+  name: string;
+  user: string;
+  date: string;
+  status: 'Active' | 'Inactive';
+  reportId: string;
+  reportType: 'DAR' | 'Incident';
+  site: string;
+  category: string; // Vault category: 'Incident Reports' | 'Daily Reports' | etc.
+}
+
 // ============================================================================
 // GLOBAL APP STATE
 // ============================================================================
@@ -91,10 +149,18 @@ interface AppState {
   
   // Site information
   sites: SiteData[];
+  
+  // Global Vault Broadcasting System
+  newVaultEntry: boolean;
+  latestReportData: LatestReportData | null;
+  
+  // Centralized Report Management
+  reports: GlobalReport[];
 }
 
 interface AppStateContextType {
   appState: AppState;
+  currentUser: CurrentUser;
   
   // Guard Management Actions
   clockInGuard: (guard: ActiveGuard) => void;
@@ -110,9 +176,18 @@ interface AppStateContextType {
   addGuardToRoster: (guard: RosterGuard) => void;
   updateGuardInRoster: (guardId: number, updates: Partial<RosterGuard>) => void;
   removeGuardFromRoster: (guardId: number) => void;
+  syncReportToGuardVault: (guardName: string, reportRecord: EmployeeHistoryRecord) => void;
+  broadcastVaultEntry: (reportData: LatestReportData) => void;
+  clearVaultEntry: () => void;
   
   // Site Management Actions
   updateSiteStatus: (siteId: number, updates: Partial<SiteData>) => void;
+  
+  // Report Management Actions
+  addReport: (report: Omit<GlobalReport, 'id' | 'referenceId' | 'timestamp'>) => void;
+  updateReportStatus: (id: number, status: GlobalReport['status'], note?: string) => void;
+  updateReport: (id: number, updates: Partial<GlobalReport>) => void;
+  getPreviewId: (type: 'Incident' | 'DAR') => string;
   
   // Computed Values
   getActiveGuardCount: () => number;
@@ -400,6 +475,42 @@ const initialSites: SiteData[] = [
   }
 ];
 
+const initialReports: GlobalReport[] = [
+  {
+    id: 1,
+    referenceId: '#IR-2026-1',
+    caseId: '#IR-2026-1',
+    type: 'Incident',
+    priority: 'high',
+    guardName: 'John Smith',
+    site: 'Building A - Main Entrance',
+    timestamp: 'Jan 4, 2026 • 11:45 PM',
+    content: 'Observed unauthorized individual attempting to enter through rear loading dock. Individual was escorted off premises. No physical altercation occurred. Police were notified and arrived at 23:52.',
+    status: 'pending',
+    location: 'Building A - Main Entrance',
+    date: 'Jan 4, 2026',
+    time: '11:45 PM',
+    incidentType: 'Unauthorized Access',
+    urgency: 'High',
+    policeCalled: 'Yes'
+  },
+  {
+    id: 2,
+    referenceId: '#DAR-2026-1',
+    caseId: '#DAR-2026-1',
+    type: 'DAR',
+    priority: 'normal',
+    guardName: 'Maria Garcia',
+    site: 'Parking Structure B',
+    timestamp: 'Jan 4, 2026 • 10:30 PM',
+    content: 'Completed hourly patrol of all 5 levels. All emergency exits secure. Lighting operational on all floors. No vehicles observed in restricted areas. Total vehicle count: 47 vehicles. Weather: Clear, temperature 68°F.',
+    status: 'pending',
+    location: 'Parking Structure B',
+    date: 'Jan 4, 2026',
+    time: '10:30 PM'
+  }
+];
+
 // ============================================================================
 // CONTEXT CREATION
 // ============================================================================
@@ -411,7 +522,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     activeGuards: initialActiveGuards,
     incidentLogs: initialIncidentLogs,
     roster: initialRoster,
-    sites: initialSites
+    sites: initialSites,
+    newVaultEntry: false,
+    latestReportData: null,
+    reports: initialReports
+  });
+
+  const [currentUser, setCurrentUser] = useState<CurrentUser>({
+    id: 55,
+    name: 'Sarah Chen',
+    role: 'Supervisor',
+    email: 'sarah.chen@guardupmatrix.com'
   });
 
   // ============================================================================
@@ -510,6 +631,37 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const syncReportToGuardVault = (guardName: string, reportRecord: EmployeeHistoryRecord) => {
+    const guardIndex = appState.roster.findIndex(g => g.name === guardName);
+    if (guardIndex !== -1) {
+      const updatedRoster = [...appState.roster];
+      if (!updatedRoster[guardIndex].employeeHistory) {
+        updatedRoster[guardIndex].employeeHistory = [];
+      }
+      updatedRoster[guardIndex].employeeHistory.push(reportRecord);
+      setAppState(prev => ({
+        ...prev,
+        roster: updatedRoster
+      }));
+    }
+  };
+
+  const broadcastVaultEntry = (reportData: LatestReportData) => {
+    setAppState(prev => ({
+      ...prev,
+      newVaultEntry: true,
+      latestReportData: reportData
+    }));
+  };
+
+  const clearVaultEntry = () => {
+    setAppState(prev => ({
+      ...prev,
+      newVaultEntry: false,
+      latestReportData: null
+    }));
+  };
+
   // ============================================================================
   // SITE MANAGEMENT ACTIONS
   // ============================================================================
@@ -521,6 +673,105 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         s.id === siteId ? { ...s, ...updates } : s
       )
     }));
+  };
+
+  // ============================================================================
+  // REPORT MANAGEMENT ACTIONS
+  // ============================================================================
+
+  // Helper function to generate sequential auto-incrementing IDs
+  const generateNextId = (type: 'Incident' | 'DAR'): string => {
+    // Get the current year (e.g., 2026)
+    const currentYear = new Date().getFullYear();
+    
+    // Define the prefix based on type ('IR' for Incident, 'DAR' for DAR)
+    const prefix = type === 'Incident' ? 'IR' : 'DAR';
+    
+    // Filter appState.reports to find all existing IDs matching #PREFIX-YEAR-
+    const matchingReports = appState.reports.filter(r => 
+      r.referenceId.startsWith(`#${prefix}-${currentYear}-`)
+    );
+    
+    // Extract the sequence numbers from those IDs (the part after the last dash)
+    const sequenceNumbers = matchingReports.map(r => {
+      const parts = r.referenceId.split('-');
+      const lastPart = parts[parts.length - 1];
+      return parseInt(lastPart, 10);
+    }).filter(num => !isNaN(num));
+    
+    // Find the maximum number. Defaults to 0 if none exist
+    const maxNumber = sequenceNumbers.length > 0 ? Math.max(...sequenceNumbers) : 0;
+    
+    // Return the formatted string: #{prefix}-{year}-{max + 1}
+    return `#${prefix}-${currentYear}-${maxNumber + 1}`;
+  };
+
+  const addReport = (report: Omit<GlobalReport, 'id' | 'referenceId' | 'timestamp'>) => {
+    const newId = Math.max(...appState.reports.map(r => r.id), 0) + 1;
+    
+    // Generate sequential ID using generateNextId
+    const referenceId = generateNextId(report.type);
+    
+    // Generate timestamp
+    const timestamp = new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    setAppState(prev => ({
+      ...prev,
+      reports: [{ ...report, id: newId, referenceId, timestamp }, ...prev.reports]
+    }));
+  };
+
+  const updateReportStatus = (id: number, status: GlobalReport['status'], note?: string) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(r =>
+        r.id === id
+          ? { ...r, status, rejectionNote: note }
+          : r
+      )
+    }));
+  };
+
+  const updateReport = (id: number, updates: Partial<GlobalReport>) => {
+    setAppState(prev => ({
+      ...prev,
+      reports: prev.reports.map(r =>
+        r.id === id ? { ...r, ...updates } : r
+      )
+    }));
+  };
+
+  const getPreviewId = (type: 'Incident' | 'DAR'): string => {
+    // Get the current year (e.g., 2026)
+    const currentYear = new Date().getFullYear();
+    
+    // Define the prefix based on type ('IR' for Incident, 'DAR' for DAR)
+    const prefix = type === 'Incident' ? 'IR' : 'DAR';
+    
+    // Filter appState.reports to find all existing IDs matching #PREFIX-YEAR-
+    const matchingReports = appState.reports.filter(r => 
+      r.referenceId.startsWith(`#${prefix}-${currentYear}-`)
+    );
+    
+    // Extract the sequence numbers from those IDs (the part after the last dash)
+    const sequenceNumbers = matchingReports.map(r => {
+      const parts = r.referenceId.split('-');
+      const lastPart = parts[parts.length - 1];
+      return parseInt(lastPart, 10);
+    }).filter(num => !isNaN(num));
+    
+    // Find the maximum number. Defaults to 0 if none exist
+    const maxNumber = sequenceNumbers.length > 0 ? Math.max(...sequenceNumbers) : 0;
+    
+    // Return the formatted string: #{prefix}-{year}-{max + 1}
+    return `#${prefix}-${currentYear}-${maxNumber + 1}`;
   };
 
   // ============================================================================
@@ -551,6 +802,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const contextValue: AppStateContextType = {
     appState,
+    currentUser,
     clockInGuard,
     clockOutGuard,
     updateGuardStatus,
@@ -560,7 +812,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     addGuardToRoster,
     updateGuardInRoster,
     removeGuardFromRoster,
+    syncReportToGuardVault,
+    broadcastVaultEntry,
+    clearVaultEntry,
     updateSiteStatus,
+    addReport,
+    updateReportStatus,
+    updateReport,
+    getPreviewId,
     getActiveGuardCount,
     getIncidentCount,
     isGuardOnShift,

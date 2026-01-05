@@ -3,6 +3,7 @@ import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { Table, Column } from '../ui/Table';
+import { useAppState } from '../../contexts/AppStateContext';
 
 interface Document {
   id: number;
@@ -13,6 +14,7 @@ interface Document {
   uploadedDate: string;
   size: string;
   status: 'active' | 'expired' | 'pending';
+  isNewEntry?: boolean; // Flag for visual highlight
 }
 
 const documents: Document[] = [
@@ -75,19 +77,47 @@ const documentColumns: Column<Document>[] = [
 ];
 
 export function Vault() {
+  const { appState } = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
+  // Check for new vault entries from global state
+  const getDocumentsList = (): Document[] => {
+    let documentsList = [...documents];
+    
+    // IF newVaultEntry == true: Inject new row at index 0
+    if (appState.newVaultEntry && appState.latestReportData) {
+      const newDoc: Document = {
+        id: Date.now(), // Unique ID
+        name: `${appState.latestReportData.name}.pdf`,
+        type: 'report',
+        category: appState.latestReportData.category, // Use the category from the broadcast
+        uploadedBy: appState.latestReportData.user,
+        uploadedDate: appState.latestReportData.date,
+        size: '1.8 MB',
+        status: 'active',
+        isNewEntry: true // Flag for visual highlight
+      };
+      
+      // Insert at the very top (index 0)
+      documentsList.unshift(newDoc);
+    }
+    
+    return documentsList;
+  };
+
+  const allDocuments = getDocumentsList();
+
   const categories = [
-    { id: 'all', label: 'All Documents', icon: Folder, count: documents.length },
-    { id: 'reports', label: 'Reports', icon: FileText, count: documents.filter(d => d.type === 'report').length },
-    { id: 'licenses', label: 'Licenses', icon: Award, count: documents.filter(d => d.type === 'license').length },
-    { id: 'certifications', label: 'Certifications', icon: Award, count: documents.filter(d => d.type === 'certification').length },
-    { id: 'receipts', label: 'Receipts', icon: Receipt, count: documents.filter(d => d.type === 'receipt').length },
-    { id: 'contracts', label: 'Contracts', icon: FileSignature, count: documents.filter(d => d.type === 'contract').length },
+    { id: 'all', label: 'All Documents', icon: Folder, count: allDocuments.length },
+    { id: 'reports', label: 'Reports', icon: FileText, count: allDocuments.filter(d => d.type === 'report').length },
+    { id: 'licenses', label: 'Licenses', icon: Award, count: allDocuments.filter(d => d.type === 'license').length },
+    { id: 'certifications', label: 'Certifications', icon: Award, count: allDocuments.filter(d => d.type === 'certification').length },
+    { id: 'receipts', label: 'Receipts', icon: Receipt, count: allDocuments.filter(d => d.type === 'receipt').length },
+    { id: 'contracts', label: 'Contracts', icon: FileSignature, count: allDocuments.filter(d => d.type === 'contract').length },
   ];
 
-  const filteredDocuments = documents.filter((doc) => {
+  const filteredDocuments = allDocuments.filter((doc) => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          doc.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || doc.type === selectedCategory;
@@ -139,7 +169,7 @@ export function Vault() {
             <div className="vault-stats">
               <div className="vault-stat-item">
                 <span className="vault-stat-label">Total Documents</span>
-                <span className="vault-stat-value">{documents.length}</span>
+                <span className="vault-stat-value">{allDocuments.length}</span>
               </div>
               <div className="vault-stat-item">
                 <span className="vault-stat-label">Total Size</span>

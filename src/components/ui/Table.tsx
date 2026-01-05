@@ -15,7 +15,7 @@ interface TableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-export function Table<T extends { id: string | number }>({ columns, data, emptyState, onRowClick }: TableProps<T>) {
+export function Table<T extends { id: string | number; isNewEntry?: boolean }>({ columns, data, emptyState, onRowClick }: TableProps<T>) {
   const [hoveredRowId, setHoveredRowId] = useState<string | number | null>(null);
 
   if (data.length === 0 && emptyState) {
@@ -42,7 +42,7 @@ export function Table<T extends { id: string | number }>({ columns, data, emptyS
           {data.map((row) => (
             <tr 
               key={row.id}
-              className={hoveredRowId === row.id ? 'row-hovered' : ''}
+              className={`${hoveredRowId === row.id ? 'row-hovered' : ''} ${row.isNewEntry ? 'vault-new-entry' : ''}`}
               onMouseEnter={() => setHoveredRowId(row.id)}
               onMouseLeave={() => setHoveredRowId(null)}
               onClick={() => onRowClick?.(row)}
