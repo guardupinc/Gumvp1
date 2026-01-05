@@ -1,11 +1,11 @@
 import React from 'react';
-import { FileText, AlertTriangle, CheckCircle, Edit, X, ArrowRight } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, Edit, X, ArrowRight, Wrench } from 'lucide-react';
 import '../../report-card.css';
 
 interface ReportCardProps {
   id: number;
   referenceId: string;
-  type: 'DAR' | 'Incident';
+  type: 'DAR' | 'Incident' | 'Maintenance';
   priority: 'normal' | 'high';
   guardName: string;
   site: string;
@@ -62,8 +62,10 @@ export function ReportCard({
       )}
       
       <div className="report-card-main">
-        <div className="report-icon-box" data-priority={priority}>
-          {priority === 'high' ? (
+        <div className="report-icon-box" data-priority={priority} data-type={type.toLowerCase()}>
+          {type === 'Maintenance' ? (
+            <Wrench size={24} />
+          ) : priority === 'high' ? (
             <AlertTriangle size={24} />
           ) : (
             <FileText size={24} />
@@ -73,7 +75,9 @@ export function ReportCard({
         <div className="report-card-content">
           <div className="report-card-header">
             <div className="report-title-row">
-              <h3>{type} Report</h3>
+              <h3>
+                {type === 'Maintenance' ? 'Maintenance Request' : `${type} Report`}
+              </h3>
               <div className="report-title-right">
                 <span className="report-reference-id">{referenceId}</span>
                 <span className="report-timestamp">{timestamp}</span>

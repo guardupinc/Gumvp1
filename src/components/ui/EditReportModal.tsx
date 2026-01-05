@@ -12,7 +12,7 @@ interface EditReportModalProps {
   report: {
     id: number;
     referenceId: string;
-    type: 'DAR' | 'Incident';
+    type: 'DAR' | 'Incident' | 'Maintenance';
     site: string;
     content: string;
     location?: string;
@@ -24,11 +24,21 @@ interface EditReportModalProps {
     policeCalled?: string;
     narrativeOnly?: string;
     caseId?: string;
+    // DAR-specific fields
+    shiftStart?: string;
+    shiftEnd?: string;
+    reliefGuard?: string;
+    equipmentStatus?: string;  // Changed from equipmentCheck to match global state
+    // Maintenance-specific fields
+    maintenanceCategory?: string;
+    specificArea?: string;
+    assetId?: string;
+    priority?: 'normal' | 'high';
   } | null;
 }
 
 export interface ReportUpdates {
-  type: 'DAR' | 'Incident';
+  type: 'DAR' | 'Incident' | 'Maintenance';
   site: string;
   content: string;
   adminNote?: string;
@@ -42,7 +52,7 @@ interface Attachment {
 }
 
 export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, report }: EditReportModalProps) {
-  const [category, setCategory] = useState<'DAR' | 'Incident'>('Incident');
+  const [category, setCategory] = useState<'DAR' | 'Incident' | 'Maintenance'>('Incident');
   const [location, setLocation] = useState('');
   const [narrative, setNarrative] = useState('');
   const [adminNote, setAdminNote] = useState('');
@@ -143,10 +153,11 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             <label htmlFor="report-category">Report Category</label>
             <Dropdown_Dark
               value={category}
-              onChange={(value) => setCategory(value as 'DAR' | 'Incident')}
+              onChange={(value) => setCategory(value as 'DAR' | 'Incident' | 'Maintenance')}
               options={[
                 { value: 'Incident', label: 'Incident Report' },
-                { value: 'DAR', label: 'Daily Activity Report' }
+                { value: 'DAR', label: 'Daily Activity Report' },
+                { value: 'Maintenance', label: 'Maintenance Request' }
               ]}
             />
           </div>
@@ -164,39 +175,104 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             />
           </div>
 
-          {/* Metadata Grid - 5 Columns (Date added at far left) */}
-          <div className="metadata-grid">
-            <div className="metadata-field">
-              <label className="metadata-label">Date of Incident</label>
-              <div className="metadata-value">{report.date || 'N/A'}</div>
+          {/* Metadata Grid - Conditional Layout Based on Report Type */}
+          {category === 'Incident' ? (
+            // INCIDENT REPORT METADATA - 5 Columns
+            <div className="metadata-grid">
+              <div className="metadata-field">
+                <label className="metadata-label">Date of Incident</label>
+                <div className="metadata-value">{report.date || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Time of Incident</label>
+                <div className="metadata-value">{report.time || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Incident Type</label>
+                <div className="metadata-value">{report.incidentType || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Urgency</label>
+                <div className="metadata-value metadata-urgency">{report.urgency || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Police Called?</label>
+                <div className="metadata-value metadata-police">{report.policeCalled || 'N/A'}</div>
+              </div>
             </div>
-            <div className="metadata-field">
-              <label className="metadata-label">Time of Incident</label>
-              <div className="metadata-value">{report.time || 'N/A'}</div>
+          ) : category === 'Maintenance' ? (
+            // MAINTENANCE REQUEST METADATA - 5 Columns
+            <div className="metadata-grid">
+              <div className="metadata-field">
+                <label className="metadata-label">Date Reported</label>
+                <div className="metadata-value">{report.date || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Time Detected</label>
+                <div className="metadata-value">{report.time || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Category</label>
+                <div className="metadata-value">{report.maintenanceCategory || 'General'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Specific Area</label>
+                <div className="metadata-value">{report.specificArea || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Priority</label>
+                <div className="metadata-value metadata-priority">
+                  {report.priority === 'high' ? 'High' : 'Normal'}
+                </div>
+              </div>
+              {report.assetId && (
+                <div className="metadata-field" style={{ gridColumn: '1 / -1' }}>
+                  <label className="metadata-label">Asset ID / Tag</label>
+                  <div className="metadata-value">{report.assetId}</div>
+                </div>
+              )}
             </div>
-            <div className="metadata-field">
-              <label className="metadata-label">Incident Type</label>
-              <div className="metadata-value">{report.incidentType || 'N/A'}</div>
+          ) : (
+            // DAR METADATA - 5 Columns (Operational Log Style)
+            <div className="metadata-grid">
+              <div className="metadata-field">
+                <label className="metadata-label">Date</label>
+                <div className="metadata-value">{report.date || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Shift Start</label>
+                <div className="metadata-value">{report.shiftStart || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Shift End</label>
+                <div className="metadata-value">{report.shiftEnd || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Relief Guard</label>
+                <div className="metadata-value">{report.reliefGuard || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Equipment Check</label>
+                <div className="metadata-value metadata-equipment">{report.equipmentStatus || 'N/A'}</div>
+              </div>
             </div>
-            <div className="metadata-field">
-              <label className="metadata-label">Urgency</label>
-              <div className="metadata-value metadata-urgency">{report.urgency || 'N/A'}</div>
-            </div>
-            <div className="metadata-field">
-              <label className="metadata-label">Police Called?</label>
-              <div className="metadata-value metadata-police">{report.policeCalled || 'N/A'}</div>
-            </div>
-          </div>
+          )}
 
           {/* Narrative Field - Shorter */}
           <div className="edit-report-form-field">
-            <label htmlFor="report-narrative">Narrative</label>
+            <label htmlFor="report-narrative">
+              {category === 'Maintenance' ? 'Issue Description' : category === 'DAR' ? 'Activity Summary' : 'Narrative'}
+            </label>
             <textarea
               id="report-narrative"
               className="edit-report-textarea"
               value={narrative}
               onChange={(e) => setNarrative(e.target.value)}
-              placeholder="Enter report narrative"
+              placeholder={
+                category === 'Maintenance' ? 'Describe the equipment issue or maintenance need...' :
+                category === 'DAR' ? 'Enter shift activity summary...' : 
+                'Enter report narrative'
+              }
               rows={5}
             />
           </div>
@@ -208,7 +284,13 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
               <div className="evidence-thumbnails">
                 {attachments.map((attachment) => (
                   <div key={attachment.id} className="evidence-thumbnail">
-                    <img src={attachment.url} alt={attachment.name} />
+                    <img 
+                      src={attachment.url} 
+                      alt={attachment.name}
+                      onClick={() => window.open(attachment.url, '_blank')}
+                      className="cursor-pointer"
+                      title="Click to view full size"
+                    />
                     <button 
                       className="evidence-remove-btn"
                       onClick={() => handleRemoveAttachment(attachment.id)}

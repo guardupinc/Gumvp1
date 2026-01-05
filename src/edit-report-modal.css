@@ -331,6 +331,16 @@
   object-fit: cover;
 }
 
+.evidence-thumbnail img.cursor-pointer {
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.evidence-thumbnail img.cursor-pointer:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
 .evidence-remove-btn {
   position: absolute;
   top: 6px;
@@ -466,4 +476,9 @@
 /* Police Called field - Bold text */
 .metadata-police {
   font-weight: 700;
+}
+
+/* Equipment Check field - Green for "All Accounted For", Orange for "Issues" */
+.metadata-equipment {
+  font-weight: 600;
 }

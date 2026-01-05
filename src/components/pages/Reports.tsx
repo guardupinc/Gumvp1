@@ -21,7 +21,7 @@ interface Report {
   id: number;
   referenceId: string;
   caseId?: string;            // Auto-generated Case ID (e.g., "#IR-2026-8492")
-  type: 'DAR' | 'Incident';
+  type: 'DAR' | 'Incident' | 'Maintenance';
   priority: 'normal' | 'high';
   guardName: string;
   site: string;
@@ -43,6 +43,15 @@ interface Report {
   urgency?: string;
   policeCalled?: string;
   narrativeOnly?: string;
+  // DAR-specific fields
+  shiftStart?: string;
+  shiftEnd?: string;
+  reliefGuard?: string;
+  equipmentStatus?: string;
+  // Maintenance-specific fields
+  maintenanceCategory?: string;
+  specificArea?: string;
+  assetId?: string;
 }
 
 interface ClientPackage {
@@ -99,7 +108,7 @@ const mockPackages: ClientPackage[] = [
 ];
 
 export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, setIs_IR2024_1156_Approved, is_DAR445_Approved, setIs_DAR445_Approved, is_DAR446_Approved, setIs_DAR446_Approved }: ReportsProps) {
-  const { currentUser, syncReportToGuardVault, broadcastVaultEntry, addReport, updateReportStatus, updateReport, getPreviewId } = useAppState();
+  const { currentUser, syncReportToGuardVault, broadcastVaultEntry, addReport, updateReportStatus, updateReport, getPreviewId, addVaultDocument } = useAppState();
   const [packages, setPackages] = useState<ClientPackage[]>(mockPackages);
   const [selectedReportIds, setSelectedReportIds] = useState<Set<number>>(new Set());
   const [dateRange, setDateRange] = useState<string>('last-7-days');
@@ -252,6 +261,26 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
   const displayedReports = filteredReportsByStatus;
   const allSelected = displayedReports.length > 0 && selectedReportIds.size === displayedReports.length;
 
+  // Helper function to generate document metadata based on report type
+  const generateDocumentMetadata = (report: Report): { fileName: string; category: 'Incident Reports' | 'Daily Reports' | 'Maintenance' } => {
+    if (report.type === 'Maintenance') {
+      return {
+        fileName: `Maintenance Request ${report.referenceId}.pdf`,
+        category: 'Maintenance'
+      };
+    } else if (report.type === 'Incident') {
+      return {
+        fileName: `Incident Report ${report.referenceId}.pdf`,
+        category: 'Incident Reports'
+      };
+    } else { // DAR
+      return {
+        fileName: `Daily Activity Report ${report.referenceId}.pdf`,
+        category: 'Daily Reports'
+      };
+    }
+  };
+
   const handleEdit = (report: Report) => {
     // In a real app, this would open an edit modal
     setEditingReport(report);
@@ -388,6 +417,20 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
           reportType: approvedReport.type,
           site: approvedReport.site,
           category: vaultCategory // Send the correct category to the Vault
+        });
+        
+        // Generate document metadata based on report type
+        const { fileName, category } = generateDocumentMetadata(approvedReport);
+        
+        // Add document to Vault
+        addVaultDocument({
+          name: fileName,
+          category: category,
+          uploadedBy: approvedReport.guardName,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          size: '1.8 MB', // Mock size
+          status: 'Active',
+          reportReferenceId: approvedReport.referenceId
         });
         
         // Show toast notification
@@ -567,12 +610,14 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     setCreateReportType(type);
     
     // Generate sequential Case ID based on report type using getPreviewId
-    let previewType: 'Incident' | 'DAR' = 'Incident';
+    let previewType: 'Incident' | 'DAR' | 'Maintenance' = 'Incident';
     
     if (type === 'incident' || type === 'disciplinary' || type === 'shift-passon') {
       previewType = 'Incident';
-    } else if (type === 'dar' || type === 'maintenance') {
+    } else if (type === 'dar') {
       previewType = 'DAR';
+    } else if (type === 'maintenance') {
+      previewType = 'Maintenance';
     }
     
     const newCaseId = getPreviewId(previewType);
@@ -594,16 +639,25 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     urgency?: string;
     policeCalled?: string;
     narrativeOnly?: string;
+    // DAR-specific fields
+    shiftStart?: string;
+    shiftEnd?: string;
+    reliefGuard?: string;
+    equipmentStatus?: string;
+    // Maintenance-specific fields
+    maintenanceCategory?: string;
+    specificArea?: string;
+    assetId?: string;
   }) => {
     // Determine report type based on createReportType
-    let type: 'DAR' | 'Incident' = 'DAR';
+    let type: 'DAR' | 'Incident' | 'Maintenance' = 'DAR';
     
     if (createReportType === 'incident') {
       type = 'Incident';
     } else if (createReportType === 'dar') {
       type = 'DAR';
     } else if (createReportType === 'maintenance') {
-      type = 'DAR'; // Maintenance is a type of DAR
+      type = 'Maintenance';
     } else if (createReportType === 'disciplinary') {
       type = 'Incident'; // Disciplinary is a type of incident
     } else if (createReportType === 'shift-passon') {
@@ -633,7 +687,16 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       incidentType: reportData.incidentType,
       urgency: reportData.urgency,
       policeCalled: reportData.policeCalled,
-      narrativeOnly: reportData.narrativeOnly
+      narrativeOnly: reportData.narrativeOnly,
+      // DAR-specific fields - passed directly from reportData
+      shiftStart: reportData.shiftStart,
+      shiftEnd: reportData.shiftEnd,
+      reliefGuard: reportData.reliefGuard,
+      equipmentStatus: reportData.equipmentStatus,
+      // Maintenance-specific fields - passed directly from reportData
+      maintenanceCategory: reportData.maintenanceCategory,
+      specificArea: reportData.specificArea,
+      assetId: reportData.assetId
     });
     
     // Show success toast
@@ -1066,6 +1129,20 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
                 reportType: approvedReport.type,
                 site: approvedReport.site,
                 category: vaultCategory // Send the correct category to the Vault
+              });
+              
+              // Generate document metadata based on report type
+              const { fileName, category } = generateDocumentMetadata(approvedReport);
+              
+              // Add document to Vault
+              addVaultDocument({
+                name: fileName,
+                category: category,
+                uploadedBy: approvedReport.guardName,
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                size: '1.8 MB', // Mock size
+                status: 'Active',
+                reportReferenceId: approvedReport.referenceId
               });
               
               // Show toast notification

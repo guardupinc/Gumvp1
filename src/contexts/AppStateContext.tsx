@@ -15,7 +15,7 @@ export interface GlobalReport {
   id: number;
   referenceId: string;
   caseId?: string;
-  type: 'DAR' | 'Incident';
+  type: 'DAR' | 'Incident' | 'Maintenance';
   priority: 'normal' | 'high';
   guardName: string;
   site: string;
@@ -38,6 +38,15 @@ export interface GlobalReport {
   urgency?: string;
   policeCalled?: string;
   narrativeOnly?: string;
+  // DAR-specific fields
+  shiftStart?: string;
+  shiftEnd?: string;
+  reliefGuard?: string;
+  equipmentStatus?: string;
+  // Maintenance-specific fields
+  maintenanceCategory?: string;
+  specificArea?: string;
+  assetId?: string;
 }
 
 export interface ActiveGuard {
@@ -133,6 +142,17 @@ export interface LatestReportData {
   category: string; // Vault category: 'Incident Reports' | 'Daily Reports' | etc.
 }
 
+export interface VaultDocument {
+  id: number;
+  name: string;
+  category: 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts';
+  uploadedBy: string;
+  date: string;
+  size: string;
+  status: 'Active' | 'Archived';
+  reportReferenceId?: string;
+}
+
 // ============================================================================
 // GLOBAL APP STATE
 // ============================================================================
@@ -156,6 +176,9 @@ interface AppState {
   
   // Centralized Report Management
   reports: GlobalReport[];
+  
+  // Vault Document Management
+  vaultDocuments: VaultDocument[];
 }
 
 interface AppStateContextType {
@@ -187,13 +210,16 @@ interface AppStateContextType {
   addReport: (report: Omit<GlobalReport, 'id' | 'referenceId' | 'timestamp'>) => void;
   updateReportStatus: (id: number, status: GlobalReport['status'], note?: string) => void;
   updateReport: (id: number, updates: Partial<GlobalReport>) => void;
-  getPreviewId: (type: 'Incident' | 'DAR') => string;
+  getPreviewId: (type: 'Incident' | 'DAR' | 'Maintenance') => string;
   
   // Computed Values
   getActiveGuardCount: () => number;
   getIncidentCount: (status?: IncidentLog['status']) => number;
   isGuardOnShift: (guardId: number) => boolean;
   getGuardCurrentSite: (guardId: number) => string | null;
+  
+  // Vault Document Management Actions
+  addVaultDocument: (doc: Omit<VaultDocument, 'id'>) => void;
 }
 
 // ============================================================================
@@ -511,6 +537,29 @@ const initialReports: GlobalReport[] = [
   }
 ];
 
+const initialVaultDocuments: VaultDocument[] = [
+  {
+    id: 1,
+    name: 'Incident Report #IR-2026-1.pdf',
+    category: 'Incident Reports',
+    uploadedBy: 'John Smith',
+    date: 'Jan 4, 2026',
+    size: '2.5 MB',
+    status: 'Active',
+    reportReferenceId: '#IR-2026-1'
+  },
+  {
+    id: 2,
+    name: 'Daily Activity Report #DAR-2026-1.pdf',
+    category: 'Daily Reports',
+    uploadedBy: 'Maria Garcia',
+    date: 'Jan 4, 2026',
+    size: '1.8 MB',
+    status: 'Active',
+    reportReferenceId: '#DAR-2026-1'
+  }
+];
+
 // ============================================================================
 // CONTEXT CREATION
 // ============================================================================
@@ -525,7 +574,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     sites: initialSites,
     newVaultEntry: false,
     latestReportData: null,
-    reports: initialReports
+    reports: initialReports,
+    vaultDocuments: initialVaultDocuments
   });
 
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
@@ -680,12 +730,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   // ============================================================================
 
   // Helper function to generate sequential auto-incrementing IDs
-  const generateNextId = (type: 'Incident' | 'DAR'): string => {
+  const generateNextId = (type: 'Incident' | 'DAR' | 'Maintenance'): string => {
     // Get the current year (e.g., 2026)
     const currentYear = new Date().getFullYear();
     
-    // Define the prefix based on type ('IR' for Incident, 'DAR' for DAR)
-    const prefix = type === 'Incident' ? 'IR' : 'DAR';
+    // Define the prefix based on type
+    let prefix: string;
+    if (type === 'Incident') {
+      prefix = 'IR';
+    } else if (type === 'Maintenance') {
+      prefix = 'MNT';
+    } else {
+      prefix = 'DAR';
+    }
     
     // Filter appState.reports to find all existing IDs matching #PREFIX-YEAR-
     const matchingReports = appState.reports.filter(r => 
@@ -748,12 +805,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const getPreviewId = (type: 'Incident' | 'DAR'): string => {
+  const getPreviewId = (type: 'Incident' | 'DAR' | 'Maintenance'): string => {
     // Get the current year (e.g., 2026)
     const currentYear = new Date().getFullYear();
     
-    // Define the prefix based on type ('IR' for Incident, 'DAR' for DAR)
-    const prefix = type === 'Incident' ? 'IR' : 'DAR';
+    // Define the prefix based on type
+    let prefix: string;
+    if (type === 'Incident') {
+      prefix = 'IR';
+    } else if (type === 'Maintenance') {
+      prefix = 'MNT';
+    } else {
+      prefix = 'DAR';
+    }
     
     // Filter appState.reports to find all existing IDs matching #PREFIX-YEAR-
     const matchingReports = appState.reports.filter(r => 
@@ -797,6 +861,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   };
 
   // ============================================================================
+  // VAULT DOCUMENT MANAGEMENT ACTIONS
+  // ============================================================================
+
+  const addVaultDocument = (doc: Omit<VaultDocument, 'id'>) => {
+    const newId = Math.max(...appState.vaultDocuments.map(d => d.id), 0) + 1;
+    setAppState(prev => ({
+      ...prev,
+      vaultDocuments: [{ ...doc, id: newId }, ...prev.vaultDocuments]
+    }));
+  };
+
+  // ============================================================================
   // CONTEXT VALUE
   // ============================================================================
 
@@ -823,7 +899,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     getActiveGuardCount,
     getIncidentCount,
     isGuardOnShift,
-    getGuardCurrentSite
+    getGuardCurrentSite,
+    addVaultDocument
   };
 
   return (

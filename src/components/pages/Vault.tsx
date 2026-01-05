@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download, Eye, MoreVertical, Filter } from 'lucide-react';
+import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download, Eye, MoreVertical, Filter, Wrench } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { Table, Column } from '../ui/Table';
@@ -8,13 +8,14 @@ import { useAppState } from '../../contexts/AppStateContext';
 interface Document {
   id: number;
   name: string;
-  type: 'report' | 'license' | 'certification' | 'receipt' | 'contract' | 'other';
+  type: 'report' | 'license' | 'certification' | 'receipt' | 'contract' | 'maintenance' | 'other';
   category: string;
   uploadedBy: string;
   uploadedDate: string;
   size: string;
   status: 'active' | 'expired' | 'pending';
   isNewEntry?: boolean; // Flag for visual highlight
+  reportReferenceId?: string; // Link to original report
 }
 
 const documents: Document[] = [
@@ -81,36 +82,39 @@ export function Vault() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Check for new vault entries from global state
-  const getDocumentsList = (): Document[] => {
-    let documentsList = [...documents];
-    
-    // IF newVaultEntry == true: Inject new row at index 0
-    if (appState.newVaultEntry && appState.latestReportData) {
-      const newDoc: Document = {
-        id: Date.now(), // Unique ID
-        name: `${appState.latestReportData.name}.pdf`,
-        type: 'report',
-        category: appState.latestReportData.category, // Use the category from the broadcast
-        uploadedBy: appState.latestReportData.user,
-        uploadedDate: appState.latestReportData.date,
-        size: '1.8 MB',
-        status: 'active',
-        isNewEntry: true // Flag for visual highlight
-      };
-      
-      // Insert at the very top (index 0)
-      documentsList.unshift(newDoc);
-    }
-    
-    return documentsList;
+  // Helper function to map VaultDocument category to Document type
+  const getCategoryType = (category: string): Document['type'] => {
+    if (category === 'Incident Reports' || category === 'Daily Reports') return 'report';
+    if (category === 'Maintenance') return 'maintenance';
+    if (category === 'Licenses') return 'license';
+    if (category === 'Certifications') return 'certification';
+    if (category === 'Receipts') return 'receipt';
+    if (category === 'Contracts') return 'contract';
+    return 'other';
   };
 
-  const allDocuments = getDocumentsList();
+  // Merge dynamic vault documents with static documents
+  const allDocuments: Document[] = [
+    // Convert VaultDocuments from global state to Document format
+    ...appState.vaultDocuments.map(vaultDoc => ({
+      id: vaultDoc.id,
+      name: vaultDoc.name,
+      type: getCategoryType(vaultDoc.category),
+      category: vaultDoc.category,
+      uploadedBy: vaultDoc.uploadedBy,
+      uploadedDate: vaultDoc.date,
+      size: vaultDoc.size,
+      status: vaultDoc.status.toLowerCase() as 'active' | 'expired' | 'pending',
+      reportReferenceId: vaultDoc.reportReferenceId
+    })),
+    // Static seed documents
+    ...documents
+  ];
 
   const categories = [
     { id: 'all', label: 'All Documents', icon: Folder, count: allDocuments.length },
     { id: 'reports', label: 'Reports', icon: FileText, count: allDocuments.filter(d => d.type === 'report').length },
+    { id: 'maintenance', label: 'Maintenance', icon: Wrench, count: allDocuments.filter(d => d.type === 'maintenance').length },
     { id: 'licenses', label: 'Licenses', icon: Award, count: allDocuments.filter(d => d.type === 'license').length },
     { id: 'certifications', label: 'Certifications', icon: Award, count: allDocuments.filter(d => d.type === 'certification').length },
     { id: 'receipts', label: 'Receipts', icon: Receipt, count: allDocuments.filter(d => d.type === 'receipt').length },
