@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar as CalendarIcon, MapPin, Clock, User, Filter, ChevronDown, AlertTriangle, DollarSign, Users, CheckCircle, Search } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, MapPin, Clock, User, Filter, ChevronDown, AlertTriangle, DollarSign, Users, CheckCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { useAppState } from '../../contexts/AppStateContext';
@@ -133,7 +133,7 @@ const availableGuards: AvailableGuard[] = [
 // ============================================================================
 
 export function Scheduling() {
-  const { appState } = useAppState();
+  const { appState, addScheduledShift, currentUser } = useAppState();
   const [selectedSite, setSelectedSite] = useState<string>('All Sites');
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -159,6 +159,9 @@ export function Scheduling() {
     overtimeCost?: number;
   } | null>(null);
   
+  // Week Navigation State
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0); // 0 = current week, -1 = last week, 1 = next week
+  
   // Grid Click Context (for opening drawer from grid)
   const [gridClickContext, setGridClickContext] = useState<{
     shiftId: number;
@@ -178,6 +181,58 @@ export function Scheduling() {
   const [shiftStartTime, setShiftStartTime] = useState<string>('08:00');
   const [shiftEndTime, setShiftEndTime] = useState<string>('16:00');
 
+  // Calculate week dates dynamically based on currentWeekOffset
+  const getWeekDates = () => {
+    const today = new Date();
+    // Get Monday of the current week (offset 0)
+    const currentMonday = new Date(today);
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days
+    currentMonday.setDate(today.getDate() + daysToMonday);
+    
+    // Apply week offset
+    const targetMonday = new Date(currentMonday);
+    targetMonday.setDate(currentMonday.getDate() + (currentWeekOffset * 7));
+    
+    // Generate array of 7 dates starting from Monday
+    const weekFullDates = [];
+    const weekDateStrings = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(targetMonday);
+      date.setDate(targetMonday.getDate() + i);
+      weekFullDates.push(date);
+      
+      const monthName = monthNames[date.getMonth()];
+      const dayNum = date.getDate();
+      weekDateStrings.push(`${monthName} ${dayNum}`);
+    }
+    
+    return { weekFullDates, weekDateStrings };
+  };
+
+  const { weekFullDates, weekDateStrings } = getWeekDates();
+
+  // Get week range display
+  const getWeekRangeDisplay = () => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const startDate = weekFullDates[0];
+    const endDate = weekFullDates[6];
+    
+    const startMonth = monthNames[startDate.getMonth()];
+    const endMonth = monthNames[endDate.getMonth()];
+    const startDay = startDate.getDate();
+    const endDay = endDate.getDate();
+    const year = endDate.getFullYear();
+    
+    if (startMonth === endMonth) {
+      return `${startMonth} ${startDay}-${endDay}, ${year}`;
+    } else {
+      return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+    }
+  };
+
   // Update current time every minute
   useEffect(() => {
     const timer = setInterval(() => {
@@ -194,18 +249,7 @@ export function Scheduling() {
     const month = now.getMonth(); // 0-based
     const date = now.getDate();
 
-    // Week dates: Mon Dec 29 2025, Tue Dec 30 2025, Wed Dec 31 2025, Thu Jan 1 2026, Fri Jan 2 2026, Sat Jan 3 2026, Sun Jan 4 2026
-    const weekFullDates = [
-      new Date(2025, 11, 29), // Monday Dec 29, 2025
-      new Date(2025, 11, 30), // Tuesday Dec 30, 2025
-      new Date(2025, 11, 31), // Wednesday Dec 31, 2025
-      new Date(2026, 0, 1),   // Thursday Jan 1, 2026
-      new Date(2026, 0, 2),   // Friday Jan 2, 2026
-      new Date(2026, 0, 3),   // Saturday Jan 3, 2026
-      new Date(2026, 0, 4),   // Sunday Jan 4, 2026
-    ];
-
-    // Find which day matches today
+    // Find which day matches today in the current displayed week
     let todayIndex = -1;
     weekFullDates.forEach((weekDate, idx) => {
       if (weekDate.getFullYear() === year && 
@@ -508,6 +552,97 @@ export function Scheduling() {
         </button>
       </div>
 
+      {/* Week Navigation */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px',
+        padding: '16px',
+        marginBottom: '8px'
+      }}>
+        <button
+          onClick={() => setCurrentWeekOffset(prev => prev - 1)}
+          className="icon-button-outline"
+          style={{
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <ChevronLeft size={18} />
+          <span>Previous Week</span>
+        </button>
+        
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '8px 20px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px'
+        }}>
+          <CalendarIcon size={18} color="var(--accent)" />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span style={{ 
+              fontSize: '14px', 
+              fontWeight: 600, 
+              color: 'var(--text-primary)' 
+            }}>
+              {getWeekRangeDisplay()}
+            </span>
+            {currentWeekOffset === 0 && (
+              <span style={{ 
+                fontSize: '11px', 
+                color: 'var(--accent)',
+                fontWeight: 600,
+                marginTop: '2px'
+              }}>
+                CURRENT WEEK
+              </span>
+            )}
+            {currentWeekOffset !== 0 && (
+              <span style={{ 
+                fontSize: '11px', 
+                color: 'var(--text-muted)',
+                marginTop: '2px'
+              }}>
+                {currentWeekOffset > 0 ? `${currentWeekOffset} week${currentWeekOffset > 1 ? 's' : ''} ahead` : `${Math.abs(currentWeekOffset)} week${Math.abs(currentWeekOffset) > 1 ? 's' : ''} ago`}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setCurrentWeekOffset(prev => prev + 1)}
+          className="icon-button-outline"
+          style={{
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <span>Next Week</span>
+          <ChevronRight size={18} />
+        </button>
+
+        {currentWeekOffset !== 0 && (
+          <button
+            onClick={() => setCurrentWeekOffset(0)}
+            className="button-outline-small"
+            style={{
+              padding: '8px 12px',
+              marginLeft: '8px'
+            }}
+          >
+            Today
+          </button>
+        )}
+      </div>
+
       {/* Main Grid Container */}
       <div className="scheduling-grid-container-clean">
         <Card className="schedule-roster-card-clean">
@@ -530,7 +665,7 @@ export function Scheduling() {
                 >
                   <div className="day-header-clean" style={isToday ? { color: '#F59E0B', fontWeight: 700 } : {}}>
                     <span className="day-name-clean">{day.substring(0, 3)}</span>
-                    <span className="day-date-clean">{weekDates[idx]}</span>
+                    <span className="day-date-clean">{weekDateStrings[idx]}</span>
                     {isToday && (
                       <>
                         <span className="today-badge">TODAY</span>
@@ -1600,6 +1735,31 @@ export function Scheduling() {
                     isOvertime: willCauseOvertime  // Mark as overtime if it pushes them over 40h
                   };
                   
+                  // Save to global state for Guard Portal synchronization
+                  addScheduledShift({
+                    guardId: modal.guardId,
+                    guardName: modal.guardName,
+                    dayOfWeek: unassignedShift.dayOfWeek as 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday',
+                    date: unassignedShift.date,
+                    startTime: unassignedShift.startTime,
+                    endTime: unassignedShift.endTime,
+                    site: unassignedShift.location,
+                    hours: unassignedShift.hours,
+                    status: 'pending',
+                    instructions: `Assigned by ${currentUser.name}`,
+                    isOvertime: willCauseOvertime,
+                    isDoubleShift: false,
+                    assignedBy: currentUser.name,
+                    assignedAt: new Date().toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })
+                  });
+                  
                   // Update all states
                   setNewlyAssignedShifts(prev => [...prev, newShift]);
                   setAssignedShifts(prev => new Set(prev).add(modal.shiftId));
@@ -1608,7 +1768,7 @@ export function Scheduling() {
                   setShowOpenShiftsDrawer(false);
                   
                   // Show success toast
-                  toast.success(`Schedule Updated: ${modal.guardName} assigned to Building C`, {
+                  toast.success(`Schedule Updated: ${modal.guardName} assigned to ${unassignedShift.location}`, {
                     duration: 4000,
                     position: 'top-center',
                   });

@@ -15,7 +15,7 @@ export interface GlobalReport {
   id: number;
   referenceId: string;
   caseId?: string;
-  type: 'DAR' | 'Incident' | 'Maintenance';
+  type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary';
   priority: 'normal' | 'high';
   guardName: string;
   site: string;
@@ -38,6 +38,8 @@ export interface GlobalReport {
   urgency?: string;
   policeCalled?: string;
   narrativeOnly?: string;
+  actionTaken?: string;
+  pdCaseNumber?: string;
   // DAR-specific fields
   shiftStart?: string;
   shiftEnd?: string;
@@ -47,6 +49,11 @@ export interface GlobalReport {
   maintenanceCategory?: string;
   specificArea?: string;
   assetId?: string;
+  // Disciplinary-specific fields
+  employeeName?: string;
+  violationType?: string;
+  disciplineLevel?: string;
+  correctiveAction?: string;
 }
 
 export interface ActiveGuard {
@@ -80,7 +87,7 @@ export interface IncidentLog {
 
 export interface EmployeeHistoryRecord {
   reportId: string;
-  reportType: 'DAR' | 'Incident';
+  reportType: 'DAR' | 'Incident' | 'Disciplinary';
   status: 'approved' | 'rejected';
   approvedBy: string;
   approvedAt: string;
@@ -137,20 +144,38 @@ export interface LatestReportData {
   date: string;
   status: 'Active' | 'Inactive';
   reportId: string;
-  reportType: 'DAR' | 'Incident';
+  reportType: 'DAR' | 'Incident' | 'Disciplinary';
   site: string;
-  category: string; // Vault category: 'Incident Reports' | 'Daily Reports' | etc.
+  category: string; // Vault category: 'Incident Reports' | 'Daily Reports' | 'HR & Internal' | etc.
 }
 
 export interface VaultDocument {
   id: number;
   name: string;
-  category: 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts';
+  category: 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'HR & Internal' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts' | 'Client Packets';
   uploadedBy: string;
   date: string;
   size: string;
   status: 'Active' | 'Archived';
   reportReferenceId?: string;
+}
+
+export interface ScheduledShift {
+  id: number;
+  guardId: number;
+  guardName: string;
+  dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  date: string; // e.g., "Jan 8, 2026"
+  startTime: string; // e.g., "08:00 AM"
+  endTime: string; // e.g., "04:00 PM"
+  site: string; // location/site name
+  hours: number;
+  status: 'pending' | 'confirmed';
+  instructions?: string;
+  isOvertime?: boolean;
+  isDoubleShift?: boolean;
+  assignedBy?: string;
+  assignedAt?: string;
 }
 
 // ============================================================================
@@ -179,6 +204,9 @@ interface AppState {
   
   // Vault Document Management
   vaultDocuments: VaultDocument[];
+  
+  // Scheduled Shifts Management
+  scheduledShifts: ScheduledShift[];
 }
 
 interface AppStateContextType {
@@ -220,6 +248,11 @@ interface AppStateContextType {
   
   // Vault Document Management Actions
   addVaultDocument: (doc: Omit<VaultDocument, 'id'>) => void;
+  
+  // Scheduled Shifts Management Actions
+  addScheduledShift: (shift: Omit<ScheduledShift, 'id'>) => void;
+  updateScheduledShift: (shiftId: number, updates: Partial<ScheduledShift>) => void;
+  removeScheduledShift: (shiftId: number) => void;
 }
 
 // ============================================================================
@@ -537,26 +570,144 @@ const initialReports: GlobalReport[] = [
   }
 ];
 
-const initialVaultDocuments: VaultDocument[] = [
+const initialVaultDocuments: VaultDocument[] = [];
+
+const initialScheduledShifts: ScheduledShift[] = [
   {
     id: 1,
-    name: 'Incident Report #IR-2026-1.pdf',
-    category: 'Incident Reports',
-    uploadedBy: 'John Smith',
-    date: 'Jan 4, 2026',
-    size: '2.5 MB',
-    status: 'Active',
-    reportReferenceId: '#IR-2026-1'
+    guardId: 1,
+    guardName: 'John Smith',
+    dayOfWeek: 'Monday',
+    date: 'Jan 8, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building A',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the main entrance and lobby.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
   },
   {
     id: 2,
-    name: 'Daily Activity Report #DAR-2026-1.pdf',
-    category: 'Daily Reports',
-    uploadedBy: 'Maria Garcia',
-    date: 'Jan 4, 2026',
-    size: '1.8 MB',
-    status: 'Active',
-    reportReferenceId: '#DAR-2026-1'
+    guardId: 2,
+    guardName: 'Maria Garcia',
+    dayOfWeek: 'Tuesday',
+    date: 'Jan 9, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building B',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the parking lot and loading dock.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 3,
+    guardId: 4,
+    guardName: 'Sarah Chen',
+    dayOfWeek: 'Wednesday',
+    date: 'Jan 10, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building A',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the security office and north corridor.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 4,
+    guardId: 5,
+    guardName: 'Robert Brown',
+    dayOfWeek: 'Thursday',
+    date: 'Jan 11, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building B',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the loading dock and north wing.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 5,
+    guardId: 6,
+    guardName: 'Lisa Wang',
+    dayOfWeek: 'Friday',
+    date: 'Jan 12, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Parking Structure C',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the parking structure and north wing.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 6,
+    guardId: 7,
+    guardName: 'Alex Johnson',
+    dayOfWeek: 'Saturday',
+    date: 'Jan 13, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building A',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the main entrance and lobby.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 7,
+    guardId: 8,
+    guardName: 'Kevin Torres',
+    dayOfWeek: 'Sunday',
+    date: 'Jan 14, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Manufacturing Wing D',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the manufacturing wing and north corridor.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
+  },
+  {
+    id: 8,
+    guardId: 17,
+    guardName: 'Marcus Chen',
+    dayOfWeek: 'Monday',
+    date: 'Jan 15, 2026',
+    startTime: '08:00 AM',
+    endTime: '04:00 PM',
+    site: 'Building B',
+    hours: 8,
+    status: 'confirmed',
+    instructions: 'Patrol the parking lot and loading dock.',
+    isOvertime: false,
+    isDoubleShift: false,
+    assignedBy: 'Sarah Chen',
+    assignedAt: 'Jan 7, 2026 10:00 AM'
   }
 ];
 
@@ -575,7 +726,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     newVaultEntry: false,
     latestReportData: null,
     reports: initialReports,
-    vaultDocuments: initialVaultDocuments
+    vaultDocuments: initialVaultDocuments,
+    scheduledShifts: initialScheduledShifts
   });
 
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
@@ -873,6 +1025,34 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   };
 
   // ============================================================================
+  // SCHEDULED SHIFTS MANAGEMENT ACTIONS
+  // ============================================================================
+
+  const addScheduledShift = (shift: Omit<ScheduledShift, 'id'>) => {
+    const newId = Math.max(...appState.scheduledShifts.map(s => s.id), 0) + 1;
+    setAppState(prev => ({
+      ...prev,
+      scheduledShifts: [{ ...shift, id: newId }, ...prev.scheduledShifts]
+    }));
+  };
+
+  const updateScheduledShift = (shiftId: number, updates: Partial<ScheduledShift>) => {
+    setAppState(prev => ({
+      ...prev,
+      scheduledShifts: prev.scheduledShifts.map(s =>
+        s.id === shiftId ? { ...s, ...updates } : s
+      )
+    }));
+  };
+
+  const removeScheduledShift = (shiftId: number) => {
+    setAppState(prev => ({
+      ...prev,
+      scheduledShifts: prev.scheduledShifts.filter(s => s.id !== shiftId)
+    }));
+  };
+
+  // ============================================================================
   // CONTEXT VALUE
   // ============================================================================
 
@@ -900,7 +1080,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     getIncidentCount,
     isGuardOnShift,
     getGuardCurrentSite,
-    addVaultDocument
+    addVaultDocument,
+    addScheduledShift,
+    updateScheduledShift,
+    removeScheduledShift
   };
 
   return (

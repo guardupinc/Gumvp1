@@ -27,6 +27,9 @@
   transform: translateX(-100%);
   transition: transform 0.3s ease;
   box-shadow: 4px 0 12px rgba(0, 0, 0, 0.3);
+  background: #0B1220; /* Solid dark background - no transparency */
+  border-right: 1px solid #334155; /* Defined edge border */
+  z-index: 100; /* Ensure it sits on top */
 }
 
 .sidebar.mobile.open {
@@ -805,12 +808,50 @@
   color: var(--accent);
 }
 
+/* Icon Color Variants */
+.kpi-icon.icon-blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.kpi-icon.icon-amber {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.kpi-icon.icon-green {
+  background: rgba(59, 209, 111, 0.1);
+  color: var(--primary-action);
+}
+
+.kpi-icon.icon-red {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
 .kpi-value {
   font-size: 32px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
   margin-bottom: 8px;
+}
+
+/* KPI Progress Bar */
+.kpi-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.kpi-progress-fill {
+  height: 100%;
+  background: var(--primary-action);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 
 .kpi-change {
@@ -901,6 +942,52 @@
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Simple Table Styles (for Guard Dashboard) */
+.simple-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.simple-table thead {
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+}
+
+.simple-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.simple-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.simple-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.simple-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.simple-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-cell-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Table Action Buttons */
@@ -1009,7 +1096,8 @@
 .status-badge.on-time,
 .status-badge.ready,
 .status-badge.success,
-.status-badge.active {
+.status-badge.active,
+.status-badge.approved {
   background: rgba(59, 209, 111, 0.15);
   color: var(--primary-action);
 }
@@ -1017,7 +1105,8 @@
 .status-badge.pending,
 .status-badge.expiring,
 .status-badge.draft,
-.status-badge.medium {
+.status-badge.medium,
+.status-badge.submitted {
   background: rgba(255, 177, 92, 0.15);
   color: #FFB15C;
 }
@@ -4512,6 +4601,277 @@ input:checked + .toggle-slider:before {
   color: var(--text-muted);
 }
 
+/* My GuardCard Page Styles */
+.guardcard-hero-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-4);
+  padding: 0 var(--spacing-2);
+}
+
+.guard-card-hero {
+  width: 100%;
+  max-width: 800px;
+  cursor: default;
+}
+
+.guard-card-hero:hover {
+  transform: none;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.guard-reliability-section {
+  display: flex;
+  justify-content: center;
+  margin: var(--spacing-2) 0;
+}
+
+.reliability-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(59, 209, 111, 0.1);
+  border: 1px solid rgba(59, 209, 111, 0.3);
+  border-radius: 20px;
+  color: var(--primary-action);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guard-utilization-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.guard-utilization-fill {
+  height: 100%;
+  background: var(--primary-action);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Certifications & Compliance Section */
+.guardcard-certifications-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-2);
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-3);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.certification-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.certification-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  transition: all 0.2s ease;
+}
+
+.certification-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.certification-card.expiring {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.certification-card.valid {
+  border-color: rgba(59, 209, 111, 0.2);
+}
+
+.cert-icon-container {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cert-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cert-icon.green {
+  background: rgba(59, 209, 111, 0.1);
+  color: var(--primary-action);
+}
+
+.cert-icon.amber {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+}
+
+.cert-status-icon {
+  flex-shrink: 0;
+}
+
+.status-success {
+  color: var(--primary-action);
+}
+
+.status-warning {
+  color: #fbbf24;
+}
+
+.cert-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cert-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cert-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cert-status.success {
+  color: var(--primary-action);
+}
+
+.cert-status.warning {
+  color: #fbbf24;
+}
+
+.cert-days-until {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* My Schedule Page */
+.schedule-card {
+  margin-bottom: var(--spacing-4);
+}
+
+.shift-row {
+  min-height: 120px;
+}
+
+.shift-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.shift-time-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shift-duration {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.shift-instructions {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.shift-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 200px;
+}
+
+.ops-status-pill.confirmed {
+  background: rgba(59, 209, 111, 0.15);
+  color: var(--primary-action);
+  border: 1px solid rgba(59, 209, 111, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ops-status-pill.pending-confirm {
+  background: rgba(255, 177, 92, 0.15);
+  color: #FFB15C;
+  border: 1px solid rgba(255, 177, 92, 0.3);
+}
+
+.shift-confirm-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.schedule-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.summary-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.summary-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* Shift Summaries */
 .shift-summary-card {
   padding: var(--spacing-3);
@@ -5043,6 +5403,14 @@ input:checked + .toggle-slider:before {
   gap: 4px;
   border-bottom: 2px solid var(--border);
   padding: 0 var(--spacing-3);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.slideover-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .slideover-tab {
@@ -5057,6 +5425,15 @@ input:checked + .toggle-slider:before {
   transition: all 0.15s ease;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .slideover-tab {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
 }
 
 .slideover-tab:hover {
@@ -8176,6 +8553,12 @@ input:checked + .toggle-slider:before {
   background: rgba(100, 116, 139, 0.15);
   color: #64748b;
   border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.ops-status-pill.scheduled {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 /* Live Pulse Indicator */

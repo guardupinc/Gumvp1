@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Mail, FileText, Send } from 'lucide-react';
+import { X, Mail, FileText, Send, Eye, Loader2 } from 'lucide-react';
 import '../../email-confirm-modal.css';
 
 interface ClientPackage {
@@ -7,6 +7,7 @@ interface ClientPackage {
   clientName: string;
   siteName: string;
   reportCount: number;
+  date?: string;
   reports: {
     type: string;
     id: string;
@@ -20,62 +21,35 @@ interface EmailConfirmModalProps {
   onEmailSend: () => void;
   package: ClientPackage | null;
   sentPackageIds: Set<number>;
+  onPreviewPDF?: () => void; // New prop to trigger PDF preview
+  isSending?: boolean; // Loading state
 }
 
-export function EmailConfirmModal({ isOpen, onClose, onEmailSend, package: pkg, sentPackageIds }: EmailConfirmModalProps) {
+export function EmailConfirmModal({ isOpen, onClose, onEmailSend, package: pkg, sentPackageIds, onPreviewPDF, isSending }: EmailConfirmModalProps) {
   if (!isOpen || !pkg) return null;
 
-  // Generate email content based on client
+  // Generate email content with generic professional template
   const getEmailData = () => {
-    if (pkg.clientName === 'Building A') {
-      return {
-        to: 'facility.manager@buildinga.com',
-        subject: `Security Report: Building A - Incident ${pkg.reports[0].id}`,
-        defaultBody: `Good Morning,
-
-Please find attached the Daily Activity Report (DAR) for the shift ending Dec 30, 2025.
-
-Summary: All scheduled patrols were completed. We successfully resolved 1 security incident regarding an unauthorized entry attempt at the loading dock. Full details and evidence photos are included in the attached PDF.
-
-Regards,
-Security Operations Team`,
-        attachmentName: 'Building_A_Incident_Report_Dec30.pdf'
-      };
-    } else if (pkg.clientName === 'Global Logistics') {
-      return {
-        to: 'operations@globallogistics.com',
-        subject: `Security Report: Global Logistics - Daily Report ${pkg.reports[0].id}`,
-        defaultBody: `Good Morning,
-
-Please find attached the Daily Activity Report (DAR) for the shift ending Dec 30, 2025.
-
-Summary: All scheduled patrols were completed without incident. Facility remained secure throughout the evening shift. All security systems operational and facility properly secured at shift conclusion.
-
-Regards,
-Security Operations Team`,
-        attachmentName: 'Global_Logistics_Daily_Report_Dec30.pdf'
-      };
-    } else if (pkg.clientName === 'Tech Innovations') {
-      return {
-        to: 'facilities@techinnovations.com',
-        subject: `Security Report: Tech Innovations - Maintenance Alert ${pkg.reports[0].id}`,
-        defaultBody: `Good Morning,
-
-Please find attached the Daily Activity Report (DAR) for the shift ending Dec 30, 2025.
-
-Summary: All scheduled patrols were completed. We identified and coordinated response to 1 maintenance issue (ceiling water leak in Room 2B-14). Issue was resolved by facilities team. Full details included in the attached PDF.
-
-Regards,
-Security Operations Team`,
-        attachmentName: 'Tech_Innovations_Maintenance_Report_Dec30.pdf'
-      };
-    }
+    const currentDate = pkg.date || new Date().toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
     
     return {
-      to: 'client@example.com',
-      subject: 'Security Report',
-      defaultBody: 'Please find attached the security report.',
-      attachmentName: 'Security_Report.pdf'
+      to: 'security@client.com',
+      subject: `Security Operations Report - ${pkg.siteName} - ${currentDate}`,
+      defaultBody: `To the Management Team at ${pkg.siteName},
+
+Please find attached the official Security Operations Report for ${currentDate}.
+
+This document serves as a consolidated record of all patrol activities, verified incidents, and site observations recorded by our team during the reporting period.
+
+All entries have been reviewed by a supervisor for accuracy.
+
+Respectfully,
+Security Operations Team`,
+      attachmentName: `${pkg.siteName.replace(/\s+/g, '_')}_Security_Report_${currentDate.replace(/\s+/g, '_')}.pdf`
     };
   };
 
@@ -90,7 +64,6 @@ Security Operations Team`,
 
   const handleSend = () => {
     onEmailSend();
-    onClose();
   };
 
   return (
@@ -133,21 +106,41 @@ Security Operations Team`,
           </div>
 
           {/* Attachment */}
-          <div className="email-attachment">
+          <div 
+            className="email-attachment group cursor-pointer hover:bg-white/5 transition-colors" 
+            onClick={onPreviewPDF}
+            title="Click to preview PDF"
+          >
             <FileText size={18} className="attachment-icon" />
             <span className="attachment-name">{emailData.attachmentName}</span>
             <span className="attachment-size">(PDF Document)</span>
+            {onPreviewPDF && (
+              <Eye size={16} className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto text-blue-400" />
+            )}
           </div>
         </div>
 
         {/* Footer Actions */}
         <div className="email-confirm-footer">
-          <button className="email-cancel-btn" onClick={onClose}>
+          <button className="email-cancel-btn" onClick={onClose} disabled={isSending}>
             Cancel
           </button>
-          <button className="email-send-btn" onClick={handleSend}>
-            <Send size={16} />
-            <span>Send Email Now</span>
+          <button 
+            className="email-send-btn" 
+            onClick={handleSend}
+            disabled={isSending}
+          >
+            {isSending ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Sending...</span>
+              </>
+            ) : (
+              <>
+                <Send size={16} />
+                <span>Send Email Now</span>
+              </>
+            )}
           </button>
         </div>
       </div>

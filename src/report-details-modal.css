@@ -228,6 +228,60 @@
   margin: 0;
 }
 
+/* Action Taken Box - Slightly lighter shade than Narrative */
+.qc-action-taken-box {
+  background-color: #1A2332;
+  border: 1px solid rgba(255, 122, 24, 0.2);
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+
+.qc-action-taken-box p {
+  color: #D1D5DB;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ========================================
+   DATA GRID SECTION
+   Display key-value pairs in responsive grid
+   ======================================== */
+
+.qc-data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.qc-data-item {
+  background-color: #1E293B;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qc-data-label {
+  color: #9CA3AF;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qc-data-value {
+  color: #E5E7EB;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 /* ========================================
    EVIDENCE SECTION: 2-Column Grid
    ======================================== */

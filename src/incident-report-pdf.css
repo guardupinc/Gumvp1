@@ -697,6 +697,141 @@
   display: none;
 }
 
+/* Activity Log Block */
+.activity-log-block {
+  background-color: #F0F9FF;
+  border: 1px solid #BFDBFE;
+  border-left: 4px solid #3B82F6;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.activity-log-title {
+  color: #1E40AF;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.activity-log-meta {
+  color: #4B5563;
+  font-size: 12px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.activity-meta-item {
+  display: inline;
+}
+
+.activity-meta-divider {
+  margin: 0 8px;
+  color: #D1D5DB;
+}
+
+.activity-summary {
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.activity-narrative {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 8px 0 0 0;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.equipment-status {
+  color: #1F2937;
+  font-size: 13px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #E5E7EB;
+}
+
+.relief-guard {
+  color: #1F2937;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* Action Taken Section */
+.action-taken {
+  background-color: #FEF3F2;
+  border: 1px solid #FEE2E2;
+  border-radius: 4px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.action-taken-text {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px 0 0 0;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+/* Police Info */
+.police-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FEF3F2;
+  border: 1px solid #FEE2E2;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  color: #991B1B;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.police-icon {
+  flex-shrink: 0;
+  color: #DC2626;
+}
+
+/* Incident Location */
+.incident-location {
+  color: #4B5563;
+  font-size: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #E5E7EB;
+}
+
+/* Incident Narrative */
+.incident-narrative {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 8px 0 0 0;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+/* Maintenance Narrative */
+.maintenance-narrative {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 8px 0 0 0;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+/* Asset ID */
+.asset-id {
+  color: #4B5563;
+  font-size: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #E5E7EB;
+}
+
 /* Print Styles */
 @media print {
   .pdf-container {

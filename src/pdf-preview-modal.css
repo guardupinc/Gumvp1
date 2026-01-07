@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 20000;
   animation: overlayFadeIn 200ms ease-out;
 }
 
@@ -115,12 +115,33 @@
 
 /* Print styles */
 @media print {
-  .pdf-toolbar {
-    display: none;
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
   }
 
+  /* Show only the report content */
+  #report-pdf-content,
+  #report-pdf-content * {
+    visibility: visible;
+  }
+
+  /* Position the report content for printing */
+  #report-pdf-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Hide the modal overlay and toolbar */
   .pdf-preview-overlay {
+    position: static;
     background-color: white;
+  }
+
+  .pdf-toolbar {
+    display: none !important;
   }
 
   .pdf-preview-container {
@@ -130,5 +151,10 @@
   .pdf-preview-content {
     background-color: white;
     overflow: visible;
+  }
+
+  /* Hide any elements with no-print class */
+  .no-print {
+    display: none !important;
   }
 }

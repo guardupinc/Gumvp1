@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download, Eye, MoreVertical, Filter, Wrench } from 'lucide-react';
+import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download, Eye, MoreVertical, Filter, Wrench, Briefcase, Upload, X } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { Table, Column } from '../ui/Table';
 import { useAppState } from '../../contexts/AppStateContext';
 
 interface Document {
-  id: number;
+  id: number | string;
   name: string;
   type: 'report' | 'license' | 'certification' | 'receipt' | 'contract' | 'maintenance' | 'other';
   category: string;
@@ -17,19 +17,6 @@ interface Document {
   isNewEntry?: boolean; // Flag for visual highlight
   reportReferenceId?: string; // Link to original report
 }
-
-const documents: Document[] = [
-  { id: 1, name: 'Incident Report - Building A Breach.pdf', type: 'report', category: 'Incident Reports', uploadedBy: 'John Smith', uploadedDate: 'Dec 22, 2024', size: '2.4 MB', status: 'active' },
-  { id: 2, name: 'Security License - John Smith.pdf', type: 'license', category: 'Licenses', uploadedBy: 'Admin', uploadedDate: 'Dec 20, 2024', size: '856 KB', status: 'active' },
-  { id: 3, name: 'CPR Certification - Maria Garcia.pdf', type: 'certification', category: 'Certifications', uploadedBy: 'Maria Garcia', uploadedDate: 'Dec 18, 2024', size: '1.2 MB', status: 'active' },
-  { id: 4, name: 'Equipment Receipt - Radio Units.pdf', type: 'receipt', category: 'Receipts', uploadedBy: 'David Lee', uploadedDate: 'Dec 15, 2024', size: '456 KB', status: 'active' },
-  { id: 5, name: 'Service Contract - Building A.pdf', type: 'contract', category: 'Contracts', uploadedBy: 'Admin', uploadedDate: 'Dec 10, 2024', size: '3.1 MB', status: 'active' },
-  { id: 6, name: 'Daily Shift Report - Dec 21.pdf', type: 'report', category: 'Daily Reports', uploadedBy: 'Sarah Chen', uploadedDate: 'Dec 21, 2024', size: '892 KB', status: 'active' },
-  { id: 7, name: 'Security License - Robert Brown.pdf', type: 'license', category: 'Licenses', uploadedBy: 'Admin', uploadedDate: 'Nov 30, 2024', size: '745 KB', status: 'expired' },
-  { id: 8, name: 'Training Certificate - Lisa Wang.pdf', type: 'certification', category: 'Certifications', uploadedBy: 'Lisa Wang', uploadedDate: 'Dec 5, 2024', size: '1.5 MB', status: 'active' },
-  { id: 9, name: 'Monthly Compliance Report - November.pdf', type: 'report', category: 'Compliance Reports', uploadedBy: 'Admin', uploadedDate: 'Dec 1, 2024', size: '4.2 MB', status: 'active' },
-  { id: 10, name: 'Uniform Receipt - Winter Jackets.pdf', type: 'receipt', category: 'Receipts', uploadedBy: 'Admin', uploadedDate: 'Nov 25, 2024', size: '567 KB', status: 'active' },
-];
 
 const documentColumns: Column<Document>[] = [
   {
@@ -78,13 +65,21 @@ const documentColumns: Column<Document>[] = [
 ];
 
 export function Vault() {
-  const { appState } = useAppState();
+  const { appState, currentUser, addVaultDocument } = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  
+  // Upload modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    name: '',
+    category: 'Incident Reports' as 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts' | 'Client Packets'
+  });
 
   // Helper function to map VaultDocument category to Document type
   const getCategoryType = (category: string): Document['type'] => {
     if (category === 'Incident Reports' || category === 'Daily Reports') return 'report';
+    if (category === 'Client Packets') return 'report'; // Client Packets are also reports
     if (category === 'Maintenance') return 'maintenance';
     if (category === 'Licenses') return 'license';
     if (category === 'Certifications') return 'certification';
@@ -93,38 +88,157 @@ export function Vault() {
     return 'other';
   };
 
-  // Merge dynamic vault documents with static documents
-  const allDocuments: Document[] = [
-    // Convert VaultDocuments from global state to Document format
-    ...appState.vaultDocuments.map(vaultDoc => ({
-      id: vaultDoc.id,
-      name: vaultDoc.name,
-      type: getCategoryType(vaultDoc.category),
-      category: vaultDoc.category,
-      uploadedBy: vaultDoc.uploadedBy,
-      uploadedDate: vaultDoc.date,
-      size: vaultDoc.size,
-      status: vaultDoc.status.toLowerCase() as 'active' | 'expired' | 'pending',
-      reportReferenceId: vaultDoc.reportReferenceId
-    })),
-    // Static seed documents
-    ...documents
-  ];
+  // Helper function to parse size string to KB for calculation
+  const parseSizeToKB = (sizeStr: string): number => {
+    const match = sizeStr.match(/^([\d.]+)\s*(KB|MB|GB)$/i);
+    if (!match) return 0;
+    
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    
+    if (unit === 'KB') return value;
+    if (unit === 'MB') return value * 1024;
+    if (unit === 'GB') return value * 1024 * 1024;
+    return 0;
+  };
+
+  // Helper function to format size from KB
+  const formatSize = (kb: number): string => {
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;
+    return `${(kb / (1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  // Helper function to generate random file size (1MB - 5MB)
+  const generateRandomSize = (): string => {
+    const minMB = 1.0;
+    const maxMB = 5.0;
+    const randomMB = (Math.random() * (maxMB - minMB) + minMB).toFixed(1);
+    return `${randomMB} MB`;
+  };
+
+  // Helper function to format current date
+  const formatCurrentDate = (): string => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Handle upload document submission
+  const handleUploadDocument = () => {
+    if (!uploadForm.name.trim()) {
+      return; // Don't upload if name is empty
+    }
+
+    addVaultDocument({
+      name: uploadForm.name,
+      category: uploadForm.category,
+      uploadedBy: currentUser.name,
+      date: formatCurrentDate(),
+      size: generateRandomSize(),
+      status: 'Active'
+    });
+
+    // Reset form and close modal
+    setUploadForm({
+      name: '',
+      category: 'Incident Reports'
+    });
+    setShowUploadModal(false);
+  };
+
+  // Convert VaultDocuments from global state to Document format
+  const allDocuments: Document[] = appState.vaultDocuments.map((vaultDoc, index) => ({
+    id: vaultDoc.reportReferenceId || `vault-${vaultDoc.id}-${index}`, // Use reportReferenceId as primary key, fallback to composite
+    name: vaultDoc.name,
+    type: getCategoryType(vaultDoc.category),
+    category: vaultDoc.category,
+    uploadedBy: vaultDoc.uploadedBy,
+    uploadedDate: vaultDoc.date,
+    size: vaultDoc.size,
+    status: vaultDoc.status.toLowerCase() as 'active' | 'expired' | 'pending',
+    reportReferenceId: vaultDoc.reportReferenceId
+  }));
+
+  // Calculate total size dynamically
+  const totalSizeKB = allDocuments.reduce((acc, doc) => acc + parseSizeToKB(doc.size), 0);
+  const totalSizeFormatted = formatSize(totalSizeKB);
+
+  // Calculate expired documents count
+  const expiredCount = allDocuments.filter(d => d.status === 'expired').length;
+
+  // Helper function to get count for each category with strict matching
+  const getCategoryCount = (categoryId: string): number => {
+    switch (categoryId) {
+      case 'all':
+        return allDocuments.length;
+      case 'reports':
+        // Reports = ONLY Incident Reports OR Daily Reports (NOT Client Packets)
+        return allDocuments.filter(d => 
+          d.category === 'Incident Reports' || d.category === 'Daily Reports'
+        ).length;
+      case 'client_packets':
+        // Client Packets = ONLY Client Packets
+        return allDocuments.filter(d => d.category === 'Client Packets').length;
+      case 'maintenance':
+        // Maintenance = ONLY Maintenance category
+        return allDocuments.filter(d => d.category === 'Maintenance').length;
+      case 'licenses':
+        return allDocuments.filter(d => d.category === 'Licenses').length;
+      case 'certifications':
+        return allDocuments.filter(d => d.category === 'Certifications').length;
+      case 'receipts':
+        return allDocuments.filter(d => d.category === 'Receipts').length;
+      case 'contracts':
+        return allDocuments.filter(d => d.category === 'Contracts').length;
+      default:
+        return 0;
+    }
+  };
 
   const categories = [
-    { id: 'all', label: 'All Documents', icon: Folder, count: allDocuments.length },
-    { id: 'reports', label: 'Reports', icon: FileText, count: allDocuments.filter(d => d.type === 'report').length },
-    { id: 'maintenance', label: 'Maintenance', icon: Wrench, count: allDocuments.filter(d => d.type === 'maintenance').length },
-    { id: 'licenses', label: 'Licenses', icon: Award, count: allDocuments.filter(d => d.type === 'license').length },
-    { id: 'certifications', label: 'Certifications', icon: Award, count: allDocuments.filter(d => d.type === 'certification').length },
-    { id: 'receipts', label: 'Receipts', icon: Receipt, count: allDocuments.filter(d => d.type === 'receipt').length },
-    { id: 'contracts', label: 'Contracts', icon: FileSignature, count: allDocuments.filter(d => d.type === 'contract').length },
+    { id: 'all', label: 'All Documents', icon: Folder, count: getCategoryCount('all') },
+    { id: 'reports', label: 'Reports', icon: FileText, count: getCategoryCount('reports') },
+    { id: 'client_packets', label: 'Client Packets', icon: Briefcase, count: getCategoryCount('client_packets') },
+    { id: 'maintenance', label: 'Maintenance', icon: Wrench, count: getCategoryCount('maintenance') },
+    { id: 'licenses', label: 'Licenses', icon: Award, count: getCategoryCount('licenses') },
+    { id: 'certifications', label: 'Certifications', icon: Award, count: getCategoryCount('certifications') },
+    { id: 'receipts', label: 'Receipts', icon: Receipt, count: getCategoryCount('receipts') },
+    { id: 'contracts', label: 'Contracts', icon: FileSignature, count: getCategoryCount('contracts') },
   ];
 
   const filteredDocuments = allDocuments.filter((doc) => {
+    // Search filter
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          doc.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || doc.type === selectedCategory;
+    
+    // Category filter with strict equality checks
+    let matchesCategory = false;
+    
+    if (selectedCategory === 'all') {
+      matchesCategory = true;
+    } else if (selectedCategory === 'reports') {
+      // Reports = ONLY Incident Reports OR Daily Reports (NOT Client Packets)
+      matchesCategory = doc.category === 'Incident Reports' || doc.category === 'Daily Reports';
+    } else if (selectedCategory === 'client_packets') {
+      // Client Packets = ONLY Client Packets
+      matchesCategory = doc.category === 'Client Packets';
+    } else if (selectedCategory === 'maintenance') {
+      // Maintenance = ONLY Maintenance category
+      matchesCategory = doc.category === 'Maintenance';
+    } else if (selectedCategory === 'licenses') {
+      matchesCategory = doc.category === 'Licenses';
+    } else if (selectedCategory === 'certifications') {
+      matchesCategory = doc.category === 'Certifications';
+    } else if (selectedCategory === 'receipts') {
+      matchesCategory = doc.category === 'Receipts';
+    } else if (selectedCategory === 'contracts') {
+      matchesCategory = doc.category === 'Contracts';
+    }
+    
     return matchesSearch && matchesCategory;
   });
 
@@ -135,7 +249,7 @@ export function Vault() {
         description="Securely store and manage all your documents, reports, and certifications"
         primaryAction={{
           label: 'Upload Document',
-          onClick: () => console.log('Upload document'),
+          onClick: () => setShowUploadModal(true),
           icon: <Plus size={16} />,
         }}
         secondaryAction={{
@@ -177,11 +291,11 @@ export function Vault() {
               </div>
               <div className="vault-stat-item">
                 <span className="vault-stat-label">Total Size</span>
-                <span className="vault-stat-value">15.8 MB</span>
+                <span className="vault-stat-value">{totalSizeFormatted}</span>
               </div>
               <div className="vault-stat-item">
                 <span className="vault-stat-label">Expired</span>
-                <span className="vault-stat-value warning">1</span>
+                <span className="vault-stat-value warning">{expiredCount}</span>
               </div>
             </div>
           </Card>
@@ -211,6 +325,56 @@ export function Vault() {
           </Card>
         </div>
       </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">Upload Document</h3>
+              <button className="modal-close" onClick={() => setShowUploadModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Document Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={uploadForm.name}
+                  onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select
+                  className="form-select"
+                  value={uploadForm.category}
+                  onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value as 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts' | 'Client Packets' })}
+                >
+                  <option value="Incident Reports">Incident Reports</option>
+                  <option value="Daily Reports">Daily Reports</option>
+                  <option value="Maintenance">Maintenance</option>
+                  <option value="Licenses">Licenses</option>
+                  <option value="Certifications">Certifications</option>
+                  <option value="Receipts">Receipts</option>
+                  <option value="Contracts">Contracts</option>
+                  <option value="Client Packets">Client Packets</option>
+                </select>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-button" onClick={() => setShowUploadModal(false)}>
+                Cancel
+              </button>
+              <button className="modal-button primary" onClick={handleUploadDocument}>
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

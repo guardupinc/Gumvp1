@@ -4,6 +4,7 @@ import { GuardPortal } from './components/guard-portal/GuardPortal';
 import { Shield, User, Building2, Lock } from 'lucide-react';
 import { Toaster } from './components/ui/sonner';
 import './portal-selector.css';
+import './styles/guard-pages.css';
 
 // User role types - in production, these would come from your authentication backend
 export type UserRole = 'SECURITY_ADMIN' | 'GUARD' | 'COMPANY_ADMIN' | null;
@@ -14,7 +15,6 @@ export default function App() {
   const [userRole, setUserRole] = useState<UserRole>(null);
 
   // In production, attempting to access wrong portal would redirect to 403
-  // This is just for demo/testing purposes
   const handleRoleSelect = (role: UserRole) => {
     setUserRole(role);
   };

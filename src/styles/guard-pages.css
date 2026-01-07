@@ -1,0 +1,403 @@
+/* Patrol Ops Page Styles */
+.patrol-map-container {
+  margin-bottom: var(--spacing-4);
+}
+
+.patrol-map-placeholder {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  height: 600px;
+  overflow: hidden;
+}
+
+.map-overlay-label {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(11, 18, 32, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-weight: 600;
+  z-index: 2;
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(11, 18, 32, 0.95) 0%, rgba(20, 30, 50, 0.95) 100%);
+}
+
+.map-building {
+  position: relative;
+  width: 400px;
+  height: 400px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.building-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-muted);
+  opacity: 0.3;
+}
+
+.patrol-route {
+  position: absolute;
+  inset: 20px;
+  border: 2px dashed var(--primary-action);
+  border-radius: 8px;
+}
+
+.route-marker {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: var(--primary-action);
+  border: 3px solid var(--background);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--background);
+  box-shadow: 0 0 20px rgba(59, 209, 111, 0.5);
+}
+
+.route-marker.marker-1 {
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.route-marker.marker-2 {
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.route-marker.marker-3 {
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.route-marker.marker-4 {
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.patrol-status-card {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  bottom: 20px;
+  width: 320px;
+  background: rgba(11, 18, 32, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  z-index: 2;
+}
+
+.status-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--primary-action);
+}
+
+.status-indicator.active .pulse-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--primary-action);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+.shift-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.current-task {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.task-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.task-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.task-progress-fill {
+  height: 100%;
+  background: var(--primary-action);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.task-progress-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.checkpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.checkpoint-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.checkpoint-item.completed {
+  color: var(--primary-action);
+  border-color: rgba(59, 209, 111, 0.3);
+}
+
+.checkpoint-item.pending {
+  color: var(--text-muted);
+}
+
+.checkpoint-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.checkpoint-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sos-button {
+  width: 100%;
+  padding: 20px;
+  background: linear-gradient(135deg, #D32F2F 0%, #C62828 100%);
+  border: 2px solid #B71C1C;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.4);
+}
+
+.sos-button:hover {
+  background: linear-gradient(135deg, #E53935 0%, #D32F2F 100%);
+  box-shadow: 0 6px 20px rgba(211, 47, 47, 0.6);
+  transform: translateY(-2px);
+}
+
+.sos-button:active {
+  transform: translateY(0);
+}
+
+.sos-button.active {
+  background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+  border-color: #1B5E20;
+  animation: sosFlash 0.5s ease-in-out;
+}
+
+@keyframes sosFlash {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.sos-text {
+  font-size: 16px;
+}
+
+.sos-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(59, 209, 111, 0.15);
+  border: 1px solid rgba(59, 209, 111, 0.3);
+  border-radius: 6px;
+  color: var(--primary-action);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.patrol-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.action-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-3);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+/* My Reports Page Styles */
+.reports-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--spacing-3);
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reports-table-card {
+  margin-bottom: var(--spacing-4);
+}
+
+.report-description {
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-icon-incident {
+  color: var(--accent);
+}
+
+.report-icon-daily {
+  color: #3B82F6;
+}
+
+.report-icon-maintenance {
+  color: var(--text-muted);
+}
+
+.report-icon-safety {
+  color: #FFB15C;
+}

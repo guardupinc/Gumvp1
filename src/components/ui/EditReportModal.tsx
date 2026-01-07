@@ -12,7 +12,7 @@ interface EditReportModalProps {
   report: {
     id: number;
     referenceId: string;
-    type: 'DAR' | 'Incident' | 'Maintenance';
+    type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary';
     site: string;
     content: string;
     location?: string;
@@ -24,6 +24,8 @@ interface EditReportModalProps {
     policeCalled?: string;
     narrativeOnly?: string;
     caseId?: string;
+    actionTaken?: string;
+    pdCaseNumber?: string;
     // DAR-specific fields
     shiftStart?: string;
     shiftEnd?: string;
@@ -34,15 +36,25 @@ interface EditReportModalProps {
     specificArea?: string;
     assetId?: string;
     priority?: 'normal' | 'high';
+    // Disciplinary-specific fields
+    employeeName?: string;
+    violationType?: string;
+    disciplineLevel?: string;
+    correctiveAction?: string;
   } | null;
 }
 
 export interface ReportUpdates {
-  type: 'DAR' | 'Incident' | 'Maintenance';
+  type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary';
   site: string;
   content: string;
   adminNote?: string;
   notifyGuard?: boolean;
+  // Disciplinary fields
+  employeeName?: string;
+  violationType?: string;
+  disciplineLevel?: string;
+  correctiveAction?: string;
 }
 
 interface Attachment {
@@ -52,7 +64,7 @@ interface Attachment {
 }
 
 export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, report }: EditReportModalProps) {
-  const [category, setCategory] = useState<'DAR' | 'Incident' | 'Maintenance'>('Incident');
+  const [category, setCategory] = useState<'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary'>('Incident');
   const [location, setLocation] = useState('');
   const [narrative, setNarrative] = useState('');
   const [adminNote, setAdminNote] = useState('');
@@ -146,6 +158,39 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
           </button>
         </div>
 
+        {/* INTERNAL ONLY Badge - Only for Disciplinary Reports */}
+        {report.type === 'Disciplinary' && (
+          <div style={{
+            backgroundColor: '#7F1D1D',
+            borderLeft: '4px solid #DC2626',
+            padding: '12px 16px',
+            marginBottom: '20px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <span style={{
+              backgroundColor: '#DC2626',
+              color: '#FFFFFF',
+              fontSize: '11px',
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: '4px',
+              letterSpacing: '0.5px'
+            }}>
+              🔒 INTERNAL ONLY
+            </span>
+            <span style={{
+              color: '#FCA5A5',
+              fontSize: '13px',
+              fontWeight: 500
+            }}>
+              This HR document will NOT be sent to clients. Filed to Internal Vault only.
+            </span>
+          </div>
+        )}
+
         {/* Form Content */}
         <div className="edit-report-modal-content">
           {/* Category Field */}
@@ -153,11 +198,12 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             <label htmlFor="report-category">Report Category</label>
             <Dropdown_Dark
               value={category}
-              onChange={(value) => setCategory(value as 'DAR' | 'Incident' | 'Maintenance')}
+              onChange={(value) => setCategory(value as 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary')}
               options={[
                 { value: 'Incident', label: 'Incident Report' },
                 { value: 'DAR', label: 'Daily Activity Report' },
-                { value: 'Maintenance', label: 'Maintenance Request' }
+                { value: 'Maintenance', label: 'Maintenance Request' },
+                { value: 'Disciplinary', label: 'Disciplinary Action' }
               ]}
             />
           </div>
@@ -177,8 +223,8 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
 
           {/* Metadata Grid - Conditional Layout Based on Report Type */}
           {category === 'Incident' ? (
-            // INCIDENT REPORT METADATA - 5 Columns
-            <div className="metadata-grid">
+            // INCIDENT REPORT METADATA - 5 or 6 Columns (with PD Case Number if applicable)
+            <div className="metadata-grid" style={{ gridTemplateColumns: report.policeCalled === 'Yes' && report.pdCaseNumber ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)' }}>
               <div className="metadata-field">
                 <label className="metadata-label">Date of Incident</label>
                 <div className="metadata-value">{report.date || 'N/A'}</div>
@@ -199,6 +245,12 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
                 <label className="metadata-label">Police Called?</label>
                 <div className="metadata-value metadata-police">{report.policeCalled || 'N/A'}</div>
               </div>
+              {report.policeCalled === 'Yes' && (
+                <div className="metadata-field">
+                  <label className="metadata-label">PD Case Number</label>
+                  <div className="metadata-value">{report.pdCaseNumber || 'N/A'}</div>
+                </div>
+              )}
             </div>
           ) : category === 'Maintenance' ? (
             // MAINTENANCE REQUEST METADATA - 5 Columns
@@ -229,6 +281,38 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
                 <div className="metadata-field" style={{ gridColumn: '1 / -1' }}>
                   <label className="metadata-label">Asset ID / Tag</label>
                   <div className="metadata-value">{report.assetId}</div>
+                </div>
+              )}
+            </div>
+          ) : category === 'Disciplinary' ? (
+            // DISCIPLINARY ACTION METADATA - 5 Columns
+            <div className="metadata-grid">
+              <div className="metadata-field">
+                <label className="metadata-label">Date of Incident</label>
+                <div className="metadata-value">{report.date || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Time of Incident</label>
+                <div className="metadata-value">{report.time || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Employee Name</label>
+                <div className="metadata-value">{report.employeeName || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Violation Type</label>
+                <div className="metadata-value">{report.violationType || 'N/A'}</div>
+              </div>
+              <div className="metadata-field">
+                <label className="metadata-label">Discipline Level</label>
+                <div className="metadata-value metadata-discipline">
+                  {report.disciplineLevel || 'N/A'}
+                </div>
+              </div>
+              {report.correctiveAction && (
+                <div className="metadata-field" style={{ gridColumn: '1 / -1' }}>
+                  <label className="metadata-label">Corrective Action</label>
+                  <div className="metadata-value">{report.correctiveAction}</div>
                 </div>
               )}
             </div>
@@ -276,6 +360,22 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
               rows={5}
             />
           </div>
+
+          {/* Action Taken Field - Only for Incident Reports */}
+          {(category === 'Incident' && report.actionTaken) && (
+            <div className="edit-report-form-field">
+              <label htmlFor="report-action-taken">Action Taken</label>
+              <textarea
+                id="report-action-taken"
+                className="edit-report-textarea"
+                value={report.actionTaken}
+                readOnly
+                placeholder="No action taken recorded"
+                rows={4}
+                style={{ backgroundColor: '#0f1621', cursor: 'default' }}
+              />
+            </div>
+          )}
 
           {/* Evidence Section */}
           <div className="edit-report-form-field">

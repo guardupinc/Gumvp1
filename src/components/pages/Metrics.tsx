@@ -6,6 +6,7 @@ import { MetricKPICard } from '../ui/MetricKPICard';
 import { MetricListCard } from '../ui/MetricListCard';
 import { AlertItem, Alert } from '../ui/AlertItem';
 import { ChartCard, BarChart, LineChart } from '../ui/ChartCard';
+import { useAppState } from '../../contexts/AppStateContext';
 import '../../metrics.css';
 
 type MetricTab = 'overview' | 'operations' | 'accountability' | 'incidents' | 'compliance' | 'scheduling' | 'documents' | 'client-experience' | 'marketplace';
@@ -44,13 +45,6 @@ const earlyCheckouts = [
   { id: 1, title: 'Lisa Wang', subtitle: 'Building B - Parking Lot', badge: { label: '20 min early', severity: 'warning' as const }, time: '11:40 PM' },
 ];
 
-const complianceGapsData = [
-  { label: 'License Expired', value: 3, color: '#ff6b6b' },
-  { label: 'Training Missing', value: 7, color: '#FFB15C' },
-  { label: 'Firearm Qual', value: 2, color: '#FFB15C' },
-  { label: 'ID Expired', value: 1, color: '#ff6b6b' },
-];
-
 const siteComplianceData = [
   { label: 'Building A', value: 98 },
   { label: 'Building C', value: 95 },
@@ -65,6 +59,122 @@ export function Metrics() {
   const [activeTab, setActiveTab] = useState<MetricTab>('overview');
   const [showFilters, setShowFilters] = useState(false);
   const [alertFilter, setAlertFilter] = useState<'all' | 'critical' | 'warning' | 'info'>('all');
+
+  // Import AppState context
+  const { appState } = useAppState();
+
+  // ============================================================================
+  // LIVE METRICS CALCULATIONS
+  // ============================================================================
+
+  // Active Jobs: Count of sites where activeGuards > 0
+  const activeJobs = appState.sites.filter(site => site.activeGuards > 0).length;
+
+  // Guards On Duty: Sum of activeGuards from all sites
+  const guardsOnDuty = appState.sites.reduce((total, site) => total + site.activeGuards, 0);
+
+  // Open Incidents: Count of reports where type === 'Incident' AND status === 'pending'
+  const openIncidents = appState.reports.filter(
+    report => report.type === 'Incident' && report.status === 'pending'
+  ).length;
+
+  // Unfilled Shifts: Using mock data for now (TODO: calculate from schedule data if available)
+  const unfilledShifts = 8;
+
+  // ============================================================================
+  // COMPLIANCE TRACKING - REAL DATA FROM ROSTER
+  // ============================================================================
+
+  // Helper: Count guards with expired security guard cards
+  const getExpiredGuardsCount = (): number => {
+    return appState.roster.filter(guard => 
+      guard.securityGuardCard?.status === 'expired'
+    ).length;
+  };
+
+  // Helper: Count guards with expiring soon cards (< 30 days)
+  const getExpiringSoonCount = (): number => {
+    return appState.roster.filter(guard => {
+      const card = guard.securityGuardCard;
+      if (!card) return false;
+      return card.daysUntilExpiry !== undefined && card.daysUntilExpiry < 30 && card.status !== 'expired';
+    }).length;
+  };
+
+  // Helper: Count guards with valid security guard cards
+  const getCompliantGuardsCount = (): number => {
+    return appState.roster.filter(guard => 
+      guard.securityGuardCard?.status === 'valid'
+    ).length;
+  };
+
+  // Helper: Count guards missing security guard card entirely
+  const getMissingCardCount = (): number => {
+    return appState.roster.filter(guard => !guard.securityGuardCard).length;
+  };
+
+  // Helper: Calculate compliance percentage
+  const getCompliancePercentage = (): number => {
+    const totalGuards = appState.roster.length;
+    if (totalGuards === 0) return 0;
+    const compliantGuards = getCompliantGuardsCount();
+    return Math.round((compliantGuards / totalGuards) * 100);
+  };
+
+  // Calculate all compliance metrics
+  const expiredGuardsCount = getExpiredGuardsCount();
+  const expiringSoonCount = getExpiringSoonCount();
+  const compliantGuardsCount = getCompliantGuardsCount();
+  const missingCardCount = getMissingCardCount();
+  const compliancePercentage = getCompliancePercentage();
+  const totalGuards = appState.roster.length;
+
+  // Breakdown of expiring soon by timeframe
+  const expiring7Days = appState.roster.filter(guard => {
+    const card = guard.securityGuardCard;
+    return card && card.daysUntilExpiry !== undefined && card.daysUntilExpiry <= 7 && card.status !== 'expired';
+  }).length;
+
+  const expiring30Days = appState.roster.filter(guard => {
+    const card = guard.securityGuardCard;
+    return card && card.daysUntilExpiry !== undefined && card.daysUntilExpiry > 7 && card.daysUntilExpiry <= 30 && card.status !== 'expired';
+  }).length;
+
+  const expiring60Days = appState.roster.filter(guard => {
+    const card = guard.securityGuardCard;
+    return card && card.daysUntilExpiry !== undefined && card.daysUntilExpiry > 30 && card.daysUntilExpiry <= 60 && card.status !== 'expired';
+  }).length;
+
+  // Update compliance gaps chart data with real values
+  const complianceGapsData = [
+    { label: 'Cards Expired', value: expiredGuardsCount, color: '#ff6b6b' },
+    { label: 'Cards Missing', value: missingCardCount, color: '#ff6b6b' },
+    { label: 'Expiring < 30d', value: expiringSoonCount, color: '#FFB15C' },
+    { label: 'Expiring < 60d', value: expiring60Days, color: '#FFB15C' },
+  ].filter(item => item.value > 0); // Only show items with actual gaps
+
+  // ============================================================================
+  // REPORT VOLUME TRACKING - REAL DATA FROM REPORTS
+  // ============================================================================
+
+  // Calculate report counts by type
+  const incidentCount = appState.reports.filter(report => report.type === 'Incident').length;
+  const maintenanceCount = appState.reports.filter(report => report.type === 'Maintenance').length;
+  const darCount = appState.reports.filter(report => report.type === 'DAR').length;
+  const totalReports = appState.reports.length;
+
+  // Calculate pending reports awaiting review (all types)
+  const pendingReportsCount = appState.reports.filter(report => report.status === 'pending').length;
+
+  // Calculate approved reports (client-delivered)
+  const approvedReportsCount = appState.reports.filter(report => report.status === 'approved').length;
+
+  // Create chart data for report volume by type
+  const reportVolumeData = [
+    { label: 'Daily Reports', value: darCount, color: '#3BD16F' },
+    { label: 'Incidents', value: incidentCount, color: '#FF7A18' },
+    { label: 'Maintenance', value: maintenanceCount, color: '#4A9EFF' },
+  ].filter(item => item.value > 0); // Only show types with actual reports
 
   const filteredAlerts = sampleAlerts.filter(
     alert => alertFilter === 'all' || alert.severity === alertFilter
@@ -187,14 +297,14 @@ export function Metrics() {
                 <div className="metrics-kpi-grid">
                   <MetricKPICard
                     title="Active Jobs Right Now"
-                    value="12"
+                    value={activeJobs.toString()}
                     subtext="Across 8 sites"
                     status="normal"
                     onClick={() => {}}
                   />
                   <MetricKPICard
                     title="Guards On Duty Now"
-                    value="47"
+                    value={guardsOnDuty.toString()}
                     delta={{ value: '+3 from yesterday', trend: 'up' }}
                     status="normal"
                     onClick={() => {}}
@@ -303,31 +413,56 @@ export function Metrics() {
                 <div className="metrics-kpi-grid">
                   <MetricKPICard
                     title="Open Incidents"
-                    value="3"
-                    status="warning"
+                    value={openIncidents.toString()}
+                    status={openIncidents > 0 ? 'warning' : 'normal'}
                     onClick={() => {}}
                   />
                   <MetricKPICard
-                    title="Incidents (7 days)"
-                    value="8"
-                    subtext="Today: 1 | Week: 8 | Month: 24"
+                    title="Total Reports Filed"
+                    value={totalReports.toString()}
+                    subtext={`DARs: ${darCount} | Incidents: ${incidentCount} | Maintenance: ${maintenanceCount}`}
                     status="normal"
                     onClick={() => {}}
                   />
                   <MetricKPICard
                     title="Reports Awaiting Review"
-                    value="4"
+                    value={pendingReportsCount.toString()}
                     subtext="Pending supervisor review"
-                    status="warning"
+                    status={pendingReportsCount > 0 ? 'warning' : 'normal'}
                     onClick={() => {}}
                   />
                   <MetricKPICard
                     title="Client-Delivered Reports"
-                    value="156"
+                    value={approvedReportsCount.toString()}
                     delta={{ value: '+23 this week', trend: 'up' }}
+                    subtext="Approved and sent to clients"
                     status="normal"
                     onClick={() => {}}
                   />
+                </div>
+
+                <div className="metrics-chart-row">
+                  <ChartCard
+                    title="Report Volume by Type"
+                    subtitle={totalReports > 0 ? `Total: ${totalReports} reports filed` : "No reports filed yet"}
+                  >
+                    {reportVolumeData.length > 0 ? (
+                      <BarChart data={reportVolumeData} />
+                    ) : (
+                      <div style={{ 
+                        padding: '40px', 
+                        textAlign: 'center', 
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        <FileText size={48} style={{ color: 'var(--text-muted)' }} />
+                        <div>No reports filed yet</div>
+                      </div>
+                    )}
+                  </ChartCard>
                 </div>
               </div>
 
@@ -340,17 +475,17 @@ export function Metrics() {
                 <div className="metrics-kpi-grid">
                   <MetricKPICard
                     title="Guards Fully Compliant"
-                    value="92%"
+                    value={`${compliancePercentage}%`}
                     delta={{ value: '+3% this month', trend: 'up' }}
-                    subtext="43/47 eligible for assigned posts"
-                    status="normal"
+                    subtext={`${compliantGuardsCount}/${totalGuards} eligible for assigned posts`}
+                    status={compliancePercentage >= 90 ? 'normal' : compliancePercentage >= 80 ? 'warning' : 'critical'}
                     onClick={() => {}}
                   />
                   <MetricKPICard
                     title="Guards Expiring Soon"
-                    value="5"
-                    subtext="7 days: 2 | 30 days: 3 | 60 days: 5"
-                    status="warning"
+                    value={expiringSoonCount.toString()}
+                    subtext={`7 days: ${expiring7Days} | 30 days: ${expiring30Days} | 60 days: ${expiring60Days}`}
+                    status={expiringSoonCount > 0 ? 'warning' : 'normal'}
                     onClick={() => {}}
                   />
                   <MetricKPICard
@@ -373,9 +508,24 @@ export function Metrics() {
                 <div className="metrics-chart-row">
                   <ChartCard
                     title="Compliance Gaps by Type"
-                    subtitle="Current non-compliant items"
+                    subtitle={complianceGapsData.length > 0 ? "Current non-compliant items" : "No compliance gaps detected"}
                   >
-                    <BarChart data={complianceGapsData} />
+                    {complianceGapsData.length > 0 ? (
+                      <BarChart data={complianceGapsData} />
+                    ) : (
+                      <div style={{ 
+                        padding: '40px', 
+                        textAlign: 'center', 
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '12px'
+                      }}>
+                        <CheckCircle size={48} style={{ color: 'var(--primary-action)' }} />
+                        <div>All guards are fully compliant!</div>
+                      </div>
+                    )}
                   </ChartCard>
                 </div>
               </div>
@@ -393,7 +543,7 @@ export function Metrics() {
                   />
                   <MetricKPICard
                     title="Unfilled Shifts"
-                    value="8"
+                    value={unfilledShifts.toString()}
                     subtext="Soonest: Tomorrow 6 AM"
                     status="warning"
                     onClick={() => {}}

@@ -5,18 +5,22 @@ import type { GuardPageId } from './GuardPortal';
 const pageTitles: Record<GuardPageId, string> = {
   'dashboard': 'Dashboard',
   'my-schedule': 'My Schedule',
-  'active-shift': 'Active Shift',
-  'reports': 'My Reports',
-  'my-documents': 'My Documents',
+  'patrol-ops': 'Operations',
+  'my-reports': 'My Reports',
+  'my-metrics': 'My Metrics',
+  'my-guardcard': 'My GuardCard',
+  'guard-vault': 'Guard Vault',
+  'settings': 'Settings',
 };
 
 interface GuardTopBarProps {
   currentPage: GuardPageId;
   onToggleSidebar: () => void;
+  userName: string;
   userRole: string;
 }
 
-export function GuardTopBar({ currentPage, onToggleSidebar, userRole }: GuardTopBarProps) {
+export function GuardTopBar({ currentPage, onToggleSidebar, userName, userRole }: GuardTopBarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -117,7 +121,7 @@ export function GuardTopBar({ currentPage, onToggleSidebar, userRole }: GuardTop
               <User size={16} />
             </div>
             <div className="user-info-desktop">
-              <span className="user-name">John Smith</span>
+              <span className="user-name">{userName}</span>
               <span className="user-role">{userRole}</span>
             </div>
             <ChevronDown size={16} className={`chevron ${userMenuOpen ? 'open' : ''}`} />

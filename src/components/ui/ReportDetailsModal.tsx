@@ -15,7 +15,7 @@ interface ReportDetailsModalProps {
   report: {
     id: number;
     referenceId: string;
-    type: 'DAR' | 'Incident';
+    type: 'DAR' | 'Incident' | 'Maintenance';
     guardName: string;
     site: string;
     timestamp: string;
@@ -30,6 +30,24 @@ interface ReportDetailsModalProps {
     rejectedAt?: string;
     location?: string;
     attachments?: Array<{ id: number; url: string; name: string }>;
+    date?: string;
+    time?: string;
+    incidentType?: string;
+    urgency?: string;
+    policeCalled?: string;
+    narrativeOnly?: string;
+    actionTaken?: string;
+    pdCaseNumber?: string;
+    priority?: 'normal' | 'high';
+    // DAR-specific fields
+    shiftStart?: string;
+    shiftEnd?: string;
+    reliefGuard?: string;
+    equipmentStatus?: string;
+    // Maintenance-specific fields
+    maintenanceCategory?: string;
+    specificArea?: string;
+    assetId?: string;
   } | null;
 }
 
@@ -72,7 +90,7 @@ export function ReportDetailsModal({
   };
 
   const getReportTypeLabel = () => {
-    return report.type === 'Incident' ? 'Incident Report' : 'Daily Activity Report';
+    return report.type === 'Incident' ? 'Incident Report' : report.type === 'Maintenance' ? 'Maintenance Report' : 'Daily Activity Report';
   };
 
   return (
@@ -119,6 +137,129 @@ export function ReportDetailsModal({
 
         {/* Body - Scrollable Content */}
         <div className="qc-body">
+          {/* Report Data Section - Conditional based on report type */}
+          <div className="qc-section">
+            <h3 className="qc-section-label">REPORT DATA</h3>
+            
+            {/* Incident Report Data */}
+            {report.type === 'Incident' && (
+              <div className="qc-data-grid">
+                {report.date && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Date of Incident</div>
+                    <div className="qc-data-value">{report.date}</div>
+                  </div>
+                )}
+                {report.time && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Time of Incident</div>
+                    <div className="qc-data-value">{report.time}</div>
+                  </div>
+                )}
+                {report.incidentType && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Incident Type</div>
+                    <div className="qc-data-value">{report.incidentType}</div>
+                  </div>
+                )}
+                {report.urgency && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Urgency</div>
+                    <div className="qc-data-value" style={{ color: report.urgency === 'Critical' || report.urgency === 'High' ? '#EF4444' : '#F59E0B' }}>{report.urgency}</div>
+                  </div>
+                )}
+                <div className="qc-data-item">
+                  <div className="qc-data-label">Police Called</div>
+                  <div className="qc-data-value" style={{ color: report.policeCalled === 'Yes' ? '#3BD16F' : '#9CA3AF' }}>{report.policeCalled || 'No'}</div>
+                </div>
+                {report.policeCalled === 'Yes' && report.pdCaseNumber && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">PD Case Number</div>
+                    <div className="qc-data-value">{report.pdCaseNumber}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DAR Data */}
+            {report.type === 'DAR' && (
+              <div className="qc-data-grid">
+                {report.date && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Date</div>
+                    <div className="qc-data-value">{report.date}</div>
+                  </div>
+                )}
+                {report.shiftStart && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Shift Start</div>
+                    <div className="qc-data-value">{report.shiftStart}</div>
+                  </div>
+                )}
+                {report.shiftEnd && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Shift End</div>
+                    <div className="qc-data-value">{report.shiftEnd}</div>
+                  </div>
+                )}
+                {report.reliefGuard && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Relief Guard</div>
+                    <div className="qc-data-value">{report.reliefGuard}</div>
+                  </div>
+                )}
+                {report.equipmentStatus && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Equipment Status</div>
+                    <div className="qc-data-value" style={{ color: report.equipmentStatus === 'All Operational' ? '#3BD16F' : '#F59E0B' }}>{report.equipmentStatus}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Maintenance Report Data */}
+            {report.type === 'Maintenance' && (
+              <div className="qc-data-grid">
+                {report.date && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Date Reported</div>
+                    <div className="qc-data-value">{report.date}</div>
+                  </div>
+                )}
+                {report.time && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Time Detected</div>
+                    <div className="qc-data-value">{report.time}</div>
+                  </div>
+                )}
+                {report.maintenanceCategory && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Category</div>
+                    <div className="qc-data-value">{report.maintenanceCategory}</div>
+                  </div>
+                )}
+                {report.specificArea && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Specific Area</div>
+                    <div className="qc-data-value">{report.specificArea}</div>
+                  </div>
+                )}
+                {report.assetId && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Asset ID</div>
+                    <div className="qc-data-value">{report.assetId}</div>
+                  </div>
+                )}
+                {report.priority && (
+                  <div className="qc-data-item">
+                    <div className="qc-data-label">Priority</div>
+                    <div className="qc-data-value" style={{ color: report.priority === 'high' ? '#EF4444' : '#9CA3AF' }}>{report.priority === 'high' ? 'High' : 'Normal'}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Narrative Section */}
           <div className="qc-section">
             <div className="qc-section-header">
@@ -134,6 +275,16 @@ export function ReportDetailsModal({
               <p>{report.content}</p>
             </div>
           </div>
+
+          {/* Action Taken Section - Only for Incident Reports */}
+          {report.type === 'Incident' && report.actionTaken && (
+            <div className="qc-section">
+              <h3 className="qc-section-label">ACTION TAKEN</h3>
+              <div className="qc-action-taken-box">
+                <p>{report.actionTaken}</p>
+              </div>
+            </div>
+          )}
 
           {/* Evidence Section */}
           <div className="qc-section">

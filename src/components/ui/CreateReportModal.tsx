@@ -18,6 +18,8 @@ interface CreateReportModalProps {
     urgency?: string;
     policeCalled?: string;
     narrativeOnly?: string;
+    actionTaken?: string;
+    pdCaseNumber?: string;
     // DAR-specific fields
     date?: string;
     shiftStart?: string;
@@ -30,6 +32,14 @@ interface CreateReportModalProps {
     maintenanceCategory?: string;
     specificArea?: string;
     assetId?: string;
+    // Disciplinary-specific fields
+    employeeName?: string;
+    violationType?: string;
+    disciplineLevel?: string;
+    narrativeOfEvents?: string;
+    correctiveAction?: string;
+    disciplinaryDate?: string;
+    disciplinaryTime?: string;
   }) => void;
 }
 
@@ -58,6 +68,15 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
   const [maintenanceCategory, setMaintenanceCategory] = useState('');
   const [specificArea, setSpecificArea] = useState('');
   const [assetId, setAssetId] = useState('');
+  
+  // State for Disciplinary-specific fields
+  const [employeeName, setEmployeeName] = useState('');
+  const [violationType, setViolationType] = useState('');
+  const [disciplineLevel, setDisciplineLevel] = useState('');
+  const [narrativeOfEvents, setNarrativeOfEvents] = useState('');
+  const [correctiveAction, setCorrectiveAction] = useState('');
+  const [disciplinaryDate, setDisciplinaryDate] = useState('');
+  const [disciplinaryTime, setDisciplinaryTime] = useState('');
   
   // Location searchable dropdown state
   const [location, setLocation] = useState('');
@@ -98,6 +117,9 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
       } else if (reportType === 'maintenance') {
         setMaintenanceDate(now.toISOString().split('T')[0]); // YYYY-MM-DD
         setMaintenanceTime(now.toTimeString().slice(0, 5)); // HH:MM
+      } else if (reportType === 'disciplinary') {
+        setDisciplinaryDate(now.toISOString().split('T')[0]); // YYYY-MM-DD
+        setDisciplinaryTime(now.toTimeString().slice(0, 5)); // HH:MM
       }
     }
   }, [isOpen, reportType]);
@@ -146,6 +168,7 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
     
     // Pass structured data - NO concatenation
     onSubmit({ 
+      caseId: caseId,                  // Pre-generated Case ID from parent (e.g., "#IR-2026-42")
       content: narrative, // Use pure narrative only for backwards compatibility
       site: location || 'Unknown Location',
       priority: urgency === 'Critical' ? 'high' : 'normal',
@@ -156,7 +179,9 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
       incidentType: incidentType,
       urgency: urgency,
       policeCalled: policeCalled ? 'Yes' : 'No',
-      narrativeOnly: narrative
+      narrativeOnly: narrative,
+      actionTaken: actionTaken,        // Action Taken field
+      pdCaseNumber: caseNumber         // PD Case Number field (mapped from caseNumber state)
     });
     
     // Reset form
@@ -169,7 +194,7 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
     if (!site || !content) {
       return;
     }
-    onSubmit({ content, site, priority });
+    onSubmit({ caseId: caseId, content, site, priority });
     // Reset form
     setSite('');
     setContent('');
@@ -562,6 +587,7 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
       }
       
       onSubmit({ 
+        caseId: caseId,  // Pre-generated Case ID from parent (e.g., "#DAR-2026-5")
         content: narrative,
         site: location || 'Unknown Location',
         priority: 'normal',
@@ -856,6 +882,7 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
       }
       
       onSubmit({ 
+        caseId: caseId,  // Pre-generated Case ID from parent (e.g., "#MNT-2026-3")
         content: narrative,
         site: location || 'Unknown Location',
         priority: priority,
@@ -1135,6 +1162,272 @@ export function CreateReportModal({ isOpen, onClose, reportType, officerName, ca
               </button>
               <button type="submit" className="button-primary">
                 Create Request
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Disciplinary Form with complete HR instrument fields
+  if (reportType === 'disciplinary') {
+    // Mock guard list for Employee Name dropdown
+    const guardList = [
+      'John Smith',
+      'Maria Garcia',
+      'James Rodriguez',
+      'Sarah Johnson',
+      'Michael Chen',
+      'Lisa Anderson'
+    ];
+
+    const handleDisciplinarySubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!employeeName || !violationType || !disciplineLevel || !narrativeOfEvents || !disciplinaryDate) {
+        return;
+      }
+      
+      onSubmit({ 
+        caseId: caseId,  // Pre-generated Case ID from parent (e.g., "#DIS-2026-2")
+        content: narrativeOfEvents,
+        site: site || 'Unknown Location',
+        priority: disciplineLevel.includes('Suspension') || disciplineLevel.includes('Termination') || disciplineLevel.includes('Final Warning') ? 'high' : 'normal',
+        location: site || 'Unknown Location',
+        date: disciplinaryDate,
+        time: disciplinaryTime,
+        narrativeOnly: narrativeOfEvents,
+        // Disciplinary-specific fields
+        employeeName: employeeName,
+        violationType: violationType,
+        disciplineLevel: disciplineLevel,
+        narrativeOfEvents: narrativeOfEvents,
+        correctiveAction: correctiveAction,
+        disciplinaryDate: disciplinaryDate,
+        disciplinaryTime: disciplinaryTime
+      });
+      
+      // Reset form
+      resetDisciplinaryForm();
+      onClose();
+    };
+
+    const resetDisciplinaryForm = () => {
+      setEmployeeName('');
+      setViolationType('');
+      setDisciplineLevel('');
+      setNarrativeOfEvents('');
+      setCorrectiveAction('');
+      setDisciplinaryDate('');
+      setDisciplinaryTime('');
+      setSite('');
+    };
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="create-report-modal incident-form-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title-with-icon">
+              <span className="report-type-emoji">{getReportIcon()}</span>
+              <h2>{getReportTitle()}</h2>
+            </div>
+            <button className="modal-close-btn" onClick={onClose}>
+              <X size={20} />
+            </button>
+          </div>
+
+          <form onSubmit={handleDisciplinarySubmit} className="modal-body incident-form-body">
+            {/* HEADER ROW 1: Reporting Officer & Disciplinary Case ID (Read-only) */}
+            <div className="form-section header-context-section">
+              <div className="form-row-2col">
+                <div className="form-group-incident">
+                  <label htmlFor="reporting-officer-disc" className="form-label-incident">
+                    Reporting Officer
+                  </label>
+                  <input
+                    type="text"
+                    id="reporting-officer-disc"
+                    value={officerName}
+                    disabled
+                    className="form-input-incident form-input-disabled"
+                  />
+                </div>
+                <div className="form-group-incident">
+                  <label htmlFor="disciplinary-case-id" className="form-label-incident">
+                    Disciplinary Case ID
+                  </label>
+                  <input
+                    type="text"
+                    id="disciplinary-case-id"
+                    value={caseId || 'Generating...'}
+                    disabled
+                    className="form-input-incident form-input-disabled"
+                    style={{ backgroundColor: '#1a2332', color: '#6b7280', fontWeight: '500' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 2: Date & Time */}
+            <div className="form-section">
+              <div className="form-row-2col">
+                <div className="form-group-incident">
+                  <label htmlFor="disc-date" className="form-label-incident">
+                    <Calendar size={16} className="label-icon-incident" />
+                    Date of Incident
+                  </label>
+                  <input
+                    type="date"
+                    id="disc-date"
+                    value={disciplinaryDate}
+                    onChange={(e) => setDisciplinaryDate(e.target.value)}
+                    className="form-input-incident"
+                    required
+                  />
+                </div>
+                <div className="form-group-incident">
+                  <label htmlFor="disc-time" className="form-label-incident">
+                    <Clock size={16} className="label-icon-incident" />
+                    Time of Incident
+                  </label>
+                  <input
+                    type="time"
+                    id="disc-time"
+                    value={disciplinaryTime}
+                    onChange={(e) => setDisciplinaryTime(e.target.value)}
+                    className="form-input-incident"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 3: Employee Name | Site/Location */}
+            <div className="form-section">
+              <div className="form-row-2col">
+                <div className="form-group-incident">
+                  <label htmlFor="employee-name" className="form-label-incident">
+                    Employee Name
+                  </label>
+                  <select
+                    id="employee-name"
+                    value={employeeName}
+                    onChange={(e) => setEmployeeName(e.target.value)}
+                    className="form-input-incident form-select-incident"
+                    required
+                  >
+                    <option value="">Select guard...</option>
+                    {guardList.map(guard => (
+                      <option key={guard} value={guard}>{guard}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group-incident">
+                  <label htmlFor="site-disc" className="form-label-incident">
+                    Site/Location
+                  </label>
+                  <input
+                    type="text"
+                    id="site-disc"
+                    value={site}
+                    onChange={(e) => setSite(e.target.value)}
+                    placeholder="e.g., Building A - Main Entrance"
+                    className="form-input-incident"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 2: Violation Type | Level of Discipline */}
+            <div className="form-section">
+              <div className="form-row-2col">
+                <div className="form-group-incident">
+                  <label htmlFor="violation-type" className="form-label-incident">
+                    Violation Type
+                  </label>
+                  <select
+                    id="violation-type"
+                    value={violationType}
+                    onChange={(e) => setViolationType(e.target.value)}
+                    className="form-input-incident form-select-incident"
+                    required
+                  >
+                    <option value="">Select violation...</option>
+                    <option value="Attendance / Lateness">Attendance / Lateness</option>
+                    <option value="Uniform / Appearance">Uniform / Appearance</option>
+                    <option value="Insubordination">Insubordination</option>
+                    <option value="Performance / SOP Violation">Performance / SOP Violation</option>
+                    <option value="Safety Violation">Safety Violation</option>
+                    <option value="Conduct Unbecoming">Conduct Unbecoming</option>
+                  </select>
+                </div>
+                <div className="form-group-incident">
+                  <label htmlFor="discipline-level" className="form-label-incident">
+                    Level of Discipline
+                  </label>
+                  <select
+                    id="discipline-level"
+                    value={disciplineLevel}
+                    onChange={(e) => setDisciplineLevel(e.target.value)}
+                    className="form-input-incident form-select-incident"
+                    required
+                  >
+                    <option value="">Select level...</option>
+                    <option value="Verbal Warning">Verbal Warning</option>
+                    <option value="Written Warning (1st)">Written Warning (1st)</option>
+                    <option value="Written Warning (2nd)">Written Warning (2nd)</option>
+                    <option value="Final Warning">Final Warning</option>
+                    <option value="Suspension">Suspension</option>
+                    <option value="Termination Recommendation">Termination Recommendation</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 3: Narrative of Events (Large textarea) */}
+            <div className="form-section">
+              <div className="form-group-incident">
+                <label htmlFor="narrative-of-events" className="form-label-incident">
+                  Narrative of Events
+                </label>
+                <textarea
+                  id="narrative-of-events"
+                  value={narrativeOfEvents}
+                  onChange={(e) => setNarrativeOfEvents(e.target.value)}
+                  placeholder="Provide a detailed account of the policy violation, including dates, times, witnesses, and specific actions..."
+                  className="form-textarea-incident"
+                  rows={10}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* ROW 4: Corrective Action Plan (Medium textarea) */}
+            <div className="form-section">
+              <div className="form-group-incident">
+                <label htmlFor="corrective-action" className="form-label-incident">
+                  Corrective Action / Expected Improvement
+                </label>
+                <textarea
+                  id="corrective-action"
+                  value={correctiveAction}
+                  onChange={(e) => setCorrectiveAction(e.target.value)}
+                  placeholder="Describe steps the employee must take to correct this behavior..."
+                  className="form-textarea-incident"
+                  rows={6}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="modal-actions">
+              <button type="button" className="button-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className="button-primary">
+                Submit Disciplinary Action
               </button>
             </div>
           </form>
