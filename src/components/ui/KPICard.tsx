@@ -14,10 +14,20 @@ interface KPICardProps {
 }
 
 export function KPICard({ title, value, change, icon, onClick, iconColor, progress }: KPICardProps) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <div 
       className={`kpi-card ${onClick ? 'kpi-card-clickable' : ''}`}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       style={onClick ? { cursor: 'pointer' } : undefined}
     >
       <div className="kpi-header">

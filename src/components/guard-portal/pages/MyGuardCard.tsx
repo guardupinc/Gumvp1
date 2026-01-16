@@ -29,72 +29,72 @@ const johnSmithData = {
   }
 };
 
-// Initial shifts for John Smith
+// Initial shifts for John Smith (updated to future dates from Jan 8, 2026 onwards)
 const johnSmithShifts = [
   {
     id: 1001,
     guardId: 1,
     site: 'Building A',
-    date: '2026-01-05',
-    startTime: '08:00',
-    endTime: '16:00',
-    instructions: 'Main entrance patrol, badge check procedures',
-    status: 'in-progress' as const,
-    hours: 8,
-    createdBy: 'Sarah Admin',
-    createdAt: '2026-01-01'
-  },
-  {
-    id: 1002,
-    guardId: 1,
-    site: 'Building A',
-    date: '2026-01-06',
+    date: '2026-01-08',
     startTime: '08:00',
     endTime: '16:00',
     instructions: 'Main entrance patrol, badge check procedures',
     status: 'scheduled' as const,
     hours: 8,
     createdBy: 'Sarah Admin',
-    createdAt: '2026-01-01'
+    createdAt: '2026-01-05'
+  },
+  {
+    id: 1002,
+    guardId: 1,
+    site: 'Building A',
+    date: '2026-01-09',
+    startTime: '08:00',
+    endTime: '16:00',
+    instructions: 'Main entrance patrol, badge check procedures',
+    status: 'scheduled' as const,
+    hours: 8,
+    createdBy: 'Sarah Admin',
+    createdAt: '2026-01-05'
   },
   {
     id: 1003,
     guardId: 1,
     site: 'Building C',
-    date: '2026-01-08',
+    date: '2026-01-10',
     startTime: '14:00',
     endTime: '22:00',
     instructions: 'Evening shift, parking lot surveillance',
     status: 'scheduled' as const,
     hours: 8,
     createdBy: 'Sarah Admin',
-    createdAt: '2026-01-02'
+    createdAt: '2026-01-05'
   },
   {
     id: 1004,
     guardId: 1,
     site: 'Building A',
-    date: '2026-01-10',
+    date: '2026-01-13',
     startTime: '08:00',
     endTime: '16:00',
     instructions: 'Standard patrol route, incident reporting',
     status: 'scheduled' as const,
     hours: 8,
     createdBy: 'Sarah Admin',
-    createdAt: '2026-01-02'
+    createdAt: '2026-01-05'
   },
   {
     id: 1005,
     guardId: 1,
     site: 'Building B',
-    date: '2026-01-13',
+    date: '2026-01-15',
     startTime: '06:00',
     endTime: '14:00',
     instructions: 'Morning shift, access control',
     status: 'scheduled' as const,
     hours: 8,
     createdBy: 'Sarah Admin',
-    createdAt: '2026-01-03'
+    createdAt: '2026-01-05'
   }
 ];
 

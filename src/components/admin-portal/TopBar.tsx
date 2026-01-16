@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Search, Bell, ChevronDown, User, Building2, LogOut } from 'lucide-react';
+import { Menu, Search, Bell, ChevronDown, User, Building2, LogOut, ChevronLeft } from 'lucide-react';
 import type { AdminPageId } from './AdminPortal';
 
 const pageTitles: Record<AdminPageId, string> = {
@@ -15,9 +15,10 @@ interface TopBarProps {
   currentPage: AdminPageId;
   onToggleSidebar: () => void;
   userRole: string;
+  sidebarCollapsed?: boolean;
 }
 
-export function TopBar({ currentPage, onToggleSidebar, userRole }: TopBarProps) {
+export function TopBar({ currentPage, onToggleSidebar, userRole, sidebarCollapsed }: TopBarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);

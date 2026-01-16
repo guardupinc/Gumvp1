@@ -22,6 +22,16 @@ export function Table<T extends { id: string | number; isNewEntry?: boolean }>({
     return <>{emptyState}</>;
   }
 
+  /**
+   * Handle keyboard navigation for row click
+   */
+  const handleKeyDown = (event: React.KeyboardEvent, row: T) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onRowClick?.(row);
+    }
+  };
+
   return (
     <div className="table-container">
       <table className="table">
@@ -46,6 +56,13 @@ export function Table<T extends { id: string | number; isNewEntry?: boolean }>({
               onMouseEnter={() => setHoveredRowId(row.id)}
               onMouseLeave={() => setHoveredRowId(null)}
               onClick={() => onRowClick?.(row)}
+              onKeyDown={(e) => handleKeyDown(e, row)}
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? 'button' : undefined}
+              style={{ 
+                cursor: onRowClick ? 'pointer' : 'default',
+                userSelect: 'text'
+              }}
             >
               {columns.map((column) => (
                 <td 

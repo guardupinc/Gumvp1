@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Calendar, Clock, MapPin, User } from 'lucide-react';
+import { getGuardNames } from '../../utils/guardsData';
 
 interface AddShiftModalProps {
   isOpen: boolean;
@@ -19,6 +20,9 @@ export interface ShiftFormData {
 }
 
 export function AddShiftModal({ isOpen, onClose, onSubmit, prefilledDate, prefilledTimeSlot }: AddShiftModalProps) {
+  // Get guards from centralized data source
+  const guardNames = getGuardNames();
+  
   const [formData, setFormData] = useState<ShiftFormData>({
     guardName: '',
     location: '',
@@ -74,13 +78,9 @@ export function AddShiftModal({ isOpen, onClose, onSubmit, prefilledDate, prefil
                 required
               >
                 <option value="">Select a guard</option>
-                <option value="John Smith">John Smith</option>
-                <option value="Maria Garcia">Maria Garcia</option>
-                <option value="David Lee">David Lee</option>
-                <option value="Lisa Wang">Lisa Wang</option>
-                <option value="Robert Brown">Robert Brown</option>
-                <option value="Mike Johnson">Mike Johnson</option>
-                <option value="Sarah Chen">Sarah Chen</option>
+                {guardNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
               </select>
             </div>
 

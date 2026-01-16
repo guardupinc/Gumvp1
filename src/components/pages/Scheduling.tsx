@@ -3,6 +3,7 @@ import { Plus, Calendar as CalendarIcon, MapPin, Clock, User, Filter, ChevronDow
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { useAppState } from '../../contexts/AppStateContext';
+import { useGuards } from '../../contexts/GuardsContext';
 import { toast } from 'sonner@2.0.3';
 
 // ============================================================================
@@ -75,7 +76,7 @@ const siteAbbreviations: Record<string, string> = {
   'Building D': 'East',
 };
 
-const scheduleData: ScheduleShift[] = [
+const initialScheduleData: ScheduleShift[] = [
   // Maria Garcia - 48 hours (OVERTIME RISK on Saturday)
   { id: 1, guardId: 2, guardName: 'Maria Garcia', dayOfWeek: 'Monday', date: 'Dec 29', startTime: '08:00', endTime: '16:00', location: 'Building B', hours: 8 },
   { id: 2, guardId: 2, guardName: 'Maria Garcia', dayOfWeek: 'Tuesday', date: 'Dec 30', startTime: '08:00', endTime: '16:00', location: 'Building B', hours: 8 },
@@ -108,6 +109,12 @@ const scheduleData: ScheduleShift[] = [
   { id: 21, guardId: 5, guardName: 'Robert Brown', dayOfWeek: 'Monday', date: 'Dec 29', startTime: '08:00', endTime: '16:00', location: 'Building D', hours: 8 },
   { id: 22, guardId: 5, guardName: 'Robert Brown', dayOfWeek: 'Wednesday', date: 'Dec 31', startTime: '08:00', endTime: '16:00', location: 'Building D', hours: 8 },
   { id: 23, guardId: 5, guardName: 'Robert Brown', dayOfWeek: 'Friday', date: 'Jan 2', startTime: '08:00', endTime: '16:00', location: 'Building D', hours: 8 },
+  
+  // Lisa Wang - 32 hours (STANDARD)
+  { id: 24, guardId: 6, guardName: 'Lisa Wang', dayOfWeek: 'Tuesday', date: 'Dec 30', startTime: '16:00', endTime: '00:00', location: 'Building B', hours: 8 },
+  { id: 25, guardId: 6, guardName: 'Lisa Wang', dayOfWeek: 'Wednesday', date: 'Dec 31', startTime: '16:00', endTime: '00:00', location: 'Building B', hours: 8 },
+  { id: 26, guardId: 6, guardName: 'Lisa Wang', dayOfWeek: 'Friday', date: 'Jan 2', startTime: '16:00', endTime: '00:00', location: 'Building B', hours: 8 },
+  { id: 27, guardId: 6, guardName: 'Lisa Wang', dayOfWeek: 'Saturday', date: 'Jan 3', startTime: '16:00', endTime: '00:00', location: 'Building B', hours: 8 },
 ];
 
 const unassignedShifts: UnassignedShift[] = [
@@ -115,25 +122,35 @@ const unassignedShifts: UnassignedShift[] = [
   { id: 102, dayOfWeek: 'Saturday', date: 'Jan 3', startTime: '08:00', endTime: '16:00', location: 'Building A', hours: 8 },
 ];
 
-const availableGuards: AvailableGuard[] = [
-  { id: 6, name: 'Lisa Wang', badgeId: 'BADGE-1029', role: 'Guard', hoursThisWeek: 32, canWorkOvertime: true },
-  { id: 7, name: 'Alex Johnson', badgeId: 'BADGE-1030', role: 'Guard', hoursThisWeek: 16, canWorkOvertime: true },
-  { id: 8, name: 'Kevin Torres', badgeId: 'BADGE-1031', role: 'Senior Guard', hoursThisWeek: 0, canWorkOvertime: false },
-  { id: 9, name: 'Maria Garcia', badgeId: 'BADGE-1032', role: 'Guard', hoursThisWeek: 40, canWorkOvertime: true },
-  { id: 10, name: 'James Wilson', badgeId: 'BADGE-1033', role: 'Guard', hoursThisWeek: 24, canWorkOvertime: true },
-  { id: 11, name: 'Patricia Moore', badgeId: 'BADGE-1034', role: 'Senior Guard', hoursThisWeek: 36, canWorkOvertime: false },
-  { id: 12, name: 'Michael Davis', badgeId: 'BADGE-1035', role: 'Guard', hoursThisWeek: 8, canWorkOvertime: true },
-  { id: 13, name: 'Jennifer Taylor', badgeId: 'BADGE-1036', role: 'Guard', hoursThisWeek: 20, canWorkOvertime: true },
-  { id: 14, name: 'Christopher Lee', badgeId: 'BADGE-1037', role: 'Guard', hoursThisWeek: 40, canWorkOvertime: true },
-  { id: 15, name: 'Amanda Martinez', badgeId: 'BADGE-1038', role: 'Senior Guard', hoursThisWeek: 12, canWorkOvertime: false },
-];
+// Import guards from centralized data source
+// All guards must exist in Workforce Management tab first
 
 // ============================================================================
 // COMPONENT
 // ============================================================================
 
-export function Scheduling() {
-  const { appState, addScheduledShift, currentUser } = useAppState();
+interface SchedulingProps {
+  autoOpenModal?: 'create-shift';
+  onModalOpened?: () => void;
+}
+
+export function Scheduling({ autoOpenModal, onModalOpened }: SchedulingProps = {}) {
+  const { appState, addScheduledShift, currentUser, addWeeklyScheduleShift, updateWeeklyScheduleShift, removeWeeklyScheduleShift, setWeeklyScheduleData } = useAppState();
+  const { getAllGuards } = useGuards();
+  
+  // Get available guards from context
+  const availableGuards: AvailableGuard[] = getAllGuards().map(guard => ({
+    id: guard.id,
+    name: guard.name,
+    badgeId: guard.badgeId,
+    role: guard.role,
+    hoursThisWeek: guard.hoursThisWeek,
+    canWorkOvertime: guard.role === 'Guard' // Only regular guards can work overtime in this demo
+  }));
+  
+  // Use global schedule data instead of local state
+  const scheduleData = appState.weeklyScheduleData;
+  
   const [selectedSite, setSelectedSite] = useState<string>('All Sites');
   const [showOvertimeDetails, setShowOvertimeDetails] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -141,6 +158,18 @@ export function Scheduling() {
   const [showOvertimeModal, setShowOvertimeModal] = useState(false);
   const [highlightedGuardId, setHighlightedGuardId] = useState<number | null>(null);
   const [showCreateShiftModal, setShowCreateShiftModal] = useState(false);
+  const [editingShift, setEditingShift] = useState<ScheduleShift | null>(null);
+
+  // Auto-open modal if requested from QuickActions
+  useEffect(() => {
+    if (autoOpenModal === 'create-shift') {
+      setShowCreateShiftModal(true);
+      if (onModalOpened) {
+        onModalOpened();
+      }
+    }
+  }, [autoOpenModal, onModalOpened]);
+
   const [approvedOvertimeShifts, setApprovedOvertimeShifts] = useState<Set<number>>(new Set());
   const [approvingOT, setApprovingOT] = useState(false);
   const [flashingOvertimeRows, setFlashingOvertimeRows] = useState<Set<number>>(new Set());
@@ -180,6 +209,35 @@ export function Scheduling() {
   const [selectedShiftSite, setSelectedShiftSite] = useState<string>('Building A');
   const [shiftStartTime, setShiftStartTime] = useState<string>('08:00');
   const [shiftEndTime, setShiftEndTime] = useState<string>('16:00');
+  const [selectedShiftDay, setSelectedShiftDay] = useState<string>('Monday');
+
+  // Handler to open edit modal
+  const handleEditShift = (shift: ScheduleShift, shiftStatus: string) => {
+    // Don't allow editing completed shifts
+    if (shiftStatus === 'past') {
+      toast.error('Cannot edit a shift that has already been completed');
+      return;
+    }
+    
+    setEditingShift(shift);
+    setSelectedGuardId(shift.guardId);
+    setSelectedShiftSite(shift.location);
+    setShiftStartTime(shift.startTime);
+    setShiftEndTime(shift.endTime);
+    setSelectedShiftDay(shift.dayOfWeek);
+    setShowCreateShiftModal(true);
+  };
+
+  // Handler to close modal and reset state
+  const handleCloseModal = () => {
+    setShowCreateShiftModal(false);
+    setEditingShift(null);
+    setSelectedGuardId(null);
+    setSelectedShiftSite('Building A');
+    setShiftStartTime('08:00');
+    setShiftEndTime('16:00');
+    setSelectedShiftDay('Monday');
+  };
 
   // Calculate week dates dynamically based on currentWeekOffset
   const getWeekDates = () => {
@@ -286,6 +344,16 @@ export function Scheduling() {
 
   // Helper function to determine shift time status
   const getShiftTimeStatus = (startTime: string, endTime: string, dayOfWeek: string) => {
+    // Check if shift is from a past day
+    const dayIndex = weekDays.indexOf(dayOfWeek);
+    if (dayIndex !== -1 && todayInfo.todayIndex !== -1) {
+      if (dayIndex < todayInfo.todayIndex) {
+        return 'past'; // Shift is from a previous day this week
+      } else if (dayIndex > todayInfo.todayIndex) {
+        return 'future'; // Shift is from a future day this week
+      }
+    }
+    
     // Only calculate for today's shifts
     if (todayInfo.dayName !== dayOfWeek) {
       return 'future'; // Not today, treat as future
@@ -319,43 +387,48 @@ export function Scheduling() {
   const processScheduleData = (): GuardWeeklySchedule[] => {
     const guardMap = new Map<number, GuardWeeklySchedule>();
 
-    // Combine original schedule data with newly assigned shifts
+    // First, initialize ALL guards from the master list
+    const allGuardsFromMaster = getAllGuards();
+    allGuardsFromMaster.forEach(masterGuard => {
+      guardMap.set(masterGuard.id, {
+        guardId: masterGuard.id,
+        guardName: masterGuard.name,
+        badgeId: masterGuard.badgeId,
+        totalHours: 0,
+        hasOvertimeRisk: false,
+        shifts: {
+          Monday: [],
+          Tuesday: [],
+          Wednesday: [],
+          Thursday: [],
+          Friday: [],
+          Saturday: [],
+          Sunday: []
+        }
+      });
+    });
+
+    // Then, populate shifts for guards who have them
     const allShifts = [...scheduleData, ...newlyAssignedShifts];
 
     allShifts.forEach(shift => {
-      if (!guardMap.has(shift.guardId)) {
-        guardMap.set(shift.guardId, {
-          guardId: shift.guardId,
-          guardName: shift.guardName,
-          badgeId: `BADGE-10${20 + shift.guardId}`,
-          totalHours: 0,
-          hasOvertimeRisk: false,
-          shifts: {
-            Monday: [],
-            Tuesday: [],
-            Wednesday: [],
-            Thursday: [],
-            Friday: [],
-            Saturday: [],
-            Sunday: []
-          }
-        });
-      }
+      const guardSchedule = guardMap.get(shift.guardId);
+      if (guardSchedule) {
+        guardSchedule.shifts[shift.dayOfWeek].push(shift);
+        guardSchedule.totalHours += shift.hours;
 
-      const guardSchedule = guardMap.get(shift.guardId)!;
-      guardSchedule.shifts[shift.dayOfWeek].push(shift);
-      guardSchedule.totalHours += shift.hours;
-
-      // Check for overtime (>40 hours per week)
-      if (guardSchedule.totalHours > 40) {
-        guardSchedule.hasOvertimeRisk = true;
-        const overtimeHours = guardSchedule.totalHours - 40;
-        // $17/hr base + 1.5x overtime = $25.50/hr OT rate
-        guardSchedule.overtimeCost = Math.round(overtimeHours * 25.5);
+        // Check for overtime (>40 hours per week)
+        if (guardSchedule.totalHours > 40) {
+          guardSchedule.hasOvertimeRisk = true;
+          const overtimeHours = guardSchedule.totalHours - 40;
+          // $17/hr base + 1.5x overtime = $25.50/hr OT rate
+          guardSchedule.overtimeCost = Math.round(overtimeHours * 25.5);
+        }
       }
     });
 
-    return Array.from(guardMap.values());
+    // Return only guards who have been scheduled shifts this week (totalHours > 0)
+    return Array.from(guardMap.values()).filter(guard => guard.totalHours > 0);
   };
 
   const guardSchedules = processScheduleData();
@@ -548,7 +621,7 @@ export function Scheduling() {
           onClick={() => setShowOvertimeModal(true)}
         >
           {isOtApproved ? <CheckCircle size={18} /> : <Clock size={18} />}
-          <span>{isOtApproved ? '1 OT Authorized' : '1 Overtime Risk'}</span>
+          <span>{isOtApproved ? `${overtimeRisks} OT Authorized` : `${overtimeRisks} Overtime Risk${overtimeRisks !== 1 ? 's' : ''}`}</span>
         </button>
       </div>
 
@@ -785,14 +858,17 @@ export function Scheduling() {
                       {dayShifts.map(shift => {
                         const shiftStatus = getShiftTimeStatus(shift.startTime, shift.endTime, day);
                         const isApproved = approvedOvertimeShifts.has(shift.id);
+                        const isPastShift = shiftStatus === 'past';
                         return (
                           <div
                             key={shift.id}
                             className={`shift-pill ${shift.isOvertime && !isApproved ? 'shift-pill-overtime' : 'shift-pill-standard'} ${shiftStatus === 'active' ? 'shift-pill-active' : ''} ${shiftStatus === 'past' ? 'shift-pill-past' : ''}`}
-                            title={`${shift.startTime}-${shift.endTime} @ ${shift.location}`}
-                            style={isApproved && shift.isOvertime ? {
-                              borderColor: '#10B981'
-                            } : {}}
+                            title={isPastShift ? `${shift.startTime}-${shift.endTime} @ ${shift.location} (Completed)` : `${shift.startTime}-${shift.endTime} @ ${shift.location} (Click to edit)`}
+                            onClick={() => handleEditShift(shift, shiftStatus)}
+                            style={{
+                              cursor: isPastShift ? 'not-allowed' : 'pointer',
+                              ...(isApproved && shift.isOvertime ? { borderColor: '#10B981' } : {})
+                            }}
                           >
                             <div className="shift-pill-color-strip" style={{ backgroundColor: siteColors[shift.location] || '#888' }}></div>
                             <div className="shift-pill-content-main">
@@ -1760,6 +1836,20 @@ export function Scheduling() {
                     })
                   });
                   
+                  // Also add to weekly schedule data for Admin Portal calendar view
+                  addWeeklyScheduleShift({
+                    guardId: modal.guardId,
+                    guardName: modal.guardName,
+                    dayOfWeek: unassignedShift.dayOfWeek as 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday',
+                    date: unassignedShift.date,
+                    startTime: unassignedShift.startTime,
+                    endTime: unassignedShift.endTime,
+                    location: unassignedShift.location,
+                    hours: unassignedShift.hours,
+                    isOvertime: willCauseOvertime,
+                    isDoubleShift: false
+                  });
+                  
                   // Update all states
                   setNewlyAssignedShifts(prev => [...prev, newShift]);
                   setAssignedShifts(prev => new Set(prev).add(modal.shiftId));
@@ -2265,7 +2355,7 @@ export function Scheduling() {
           {/* Backdrop */}
           <div 
             className="create-shift-modal-backdrop" 
-            onClick={() => setShowCreateShiftModal(false)}
+            onClick={handleCloseModal}
             style={{
               position: 'fixed',
               top: 0,
@@ -2317,10 +2407,10 @@ export function Scheduling() {
                 gap: '12px'
               }}>
                 <Plus size={24} style={{ color: '#F59E0B' }} />
-                Create New Shift
+                {editingShift ? 'Edit Shift' : 'Create New Shift'}
               </h2>
               <button 
-                onClick={() => setShowCreateShiftModal(false)}
+                onClick={handleCloseModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -2487,6 +2577,85 @@ export function Scheduling() {
                         </div>
                       )}
                     </div>
+
+                    {/* Day Selection - Only show when creating a new shift */}
+                    {!editingShift && (
+                      <div>
+                        <label style={{
+                          display: 'block',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#9CA3AF',
+                          marginBottom: '8px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          Select Day
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <CalendarIcon size={18} style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#9CA3AF',
+                            pointerEvents: 'none',
+                            zIndex: 1
+                          }} />
+                          <select
+                            value={selectedShiftDay}
+                            onChange={(e) => setSelectedShiftDay(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '12px 12px 12px 40px',
+                              background: '#111827',
+                              border: '1px solid #374151',
+                              borderRadius: '8px',
+                              color: '#FFFFFF',
+                              fontSize: '14px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {weekDays.map((day, idx) => (
+                              <option key={day} value={day}>
+                                {day} - {weekDateStrings[idx]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Day Display - Show when editing */}
+                    {editingShift && (
+                      <div>
+                        <label style={{
+                          display: 'block',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#9CA3AF',
+                          marginBottom: '8px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          Day
+                        </label>
+                        <div style={{
+                          padding: '12px 16px',
+                          background: '#111827',
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#FFFFFF',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <CalendarIcon size={18} style={{ color: '#9CA3AF' }} />
+                          <span>{editingShift.dayOfWeek} - {editingShift.date}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Site Selection */}
                     <div>
@@ -2694,7 +2863,7 @@ export function Scheduling() {
               justifyContent: 'flex-end'
             }}>
               <button 
-                onClick={() => setShowCreateShiftModal(false)}
+                onClick={handleCloseModal}
                 style={{
                   padding: '10px 20px',
                   background: 'transparent',
@@ -2710,13 +2879,77 @@ export function Scheduling() {
               </button>
               <button 
                 onClick={() => {
-                  console.log('Publishing shift:', {
-                    guardId: selectedGuardId,
-                    site: selectedShiftSite,
-                    startTime: shiftStartTime,
-                    endTime: shiftEndTime
-                  });
-                  setShowCreateShiftModal(false);
+                  if (editingShift) {
+                    // Update existing shift
+                    console.log('Updating shift:', {
+                      shiftId: editingShift.id,
+                      guardId: selectedGuardId,
+                      site: selectedShiftSite,
+                      startTime: shiftStartTime,
+                      endTime: shiftEndTime,
+                      dayOfWeek: editingShift.dayOfWeek,
+                      date: editingShift.date
+                    });
+                    
+                    // Calculate updated hours
+                    const startParts = shiftStartTime.split(':').map(Number);
+                    const endParts = shiftEndTime.split(':').map(Number);
+                    const startMinutes = startParts[0] * 60 + startParts[1];
+                    const endMinutes = endParts[0] * 60 + endParts[1];
+                    let durationMinutes = endMinutes - startMinutes;
+                    if (durationMinutes < 0) durationMinutes += 24 * 60;
+                    const hours = durationMinutes / 60;
+                    
+                    // Calculate if this shift would cause overtime for the selected guard
+                    // Get all shifts for this guard (excluding the shift being edited)
+                    const allGuardShifts = [...scheduleData, ...newlyAssignedShifts].filter(
+                      s => s.guardId === selectedGuardId && s.id !== editingShift.id
+                    );
+                    const guardTotalHours = allGuardShifts.reduce((sum, s) => sum + s.hours, 0);
+                    const newTotalHours = guardTotalHours + hours;
+                    const wouldCauseOvertime = newTotalHours > 40;
+                    
+                    // Create updated shift object
+                    const updatedShift: ScheduleShift = {
+                      ...editingShift,
+                      guardId: selectedGuardId!,
+                      guardName: getAllGuards().find(g => g.id === selectedGuardId)?.name || editingShift.guardName,
+                      location: selectedShiftSite,
+                      startTime: shiftStartTime,
+                      endTime: shiftEndTime,
+                      hours: hours,
+                      isOvertime: wouldCauseOvertime,
+                      // Clear isDoubleShift if it's no longer overtime
+                      isDoubleShift: wouldCauseOvertime ? editingShift.isDoubleShift : undefined
+                    };
+                    
+                    // Try to update in newlyAssignedShifts first
+                    const newlyAssignedIndex = newlyAssignedShifts.findIndex(s => s.id === editingShift.id);
+                    if (newlyAssignedIndex !== -1) {
+                      const updated = [...newlyAssignedShifts];
+                      updated[newlyAssignedIndex] = updatedShift;
+                      setNewlyAssignedShifts(updated);
+                    } else {
+                      // If not in newlyAssignedShifts, update in global state
+                      const scheduleDataIndex = scheduleData.findIndex(s => s.id === editingShift.id);
+                      if (scheduleDataIndex !== -1) {
+                        updateWeeklyScheduleShift(editingShift.id, updatedShift);
+                      }
+                    }
+                    
+                    toast.success('Shift updated successfully');
+                  } else {
+                    // Create new shift
+                    console.log('Publishing shift:', {
+                      guardId: selectedGuardId,
+                      site: selectedShiftSite,
+                      startTime: shiftStartTime,
+                      endTime: shiftEndTime,
+                      dayOfWeek: selectedShiftDay
+                    });
+                    toast.success('Shift created successfully');
+                  }
+                  handleCloseModal();
                 }}
                 disabled={!selectedGuardId}
                 style={{
@@ -2731,7 +2964,7 @@ export function Scheduling() {
                   opacity: selectedGuardId ? 1 : 0.5
                 }}
               >
-                Publish Schedule
+                {editingShift ? 'Update Shift' : 'Publish Schedule'}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Clock, AlertTriangle, Radio } from 'lucide-react';
+import { Clock, AlertTriangle, Radio, Calendar } from 'lucide-react';
+import { getTodaysScheduledShifts } from '../../utils/activeShifts';
 
 interface Guard {
   id: number;
@@ -29,109 +30,89 @@ interface DailyOperationsTimelineProps {
   onViewFullSchedule?: () => void;
 }
 
-// Mock data generator
+// Generate today's operations from the scheduled shifts
 export const generateTodayOperations = (): ShiftOperation[] => {
-  return [
-    {
-      id: 1,
-      startTime: '06:00 AM',
-      endTime: '02:00 PM',
-      site: 'Building A - Main Entrance',
-      status: 'active',
-      progress: 75,
-      guard: {
-        id: 1,
-        name: 'John Smith',
-        initials: 'JS'
-      },
-      lastScan: {
-        minutesAgo: 2,
-        isLate: false
-      }
-    },
-    {
-      id: 2,
-      startTime: '08:00 AM',
-      endTime: '04:00 PM',
-      site: 'Building B - Security Office',
-      status: 'unassigned'
-    },
-    {
-      id: 3,
-      startTime: '08:00 AM',
-      endTime: '04:00 PM',
-      site: 'Parking Structure C - Level 1',
-      status: 'active',
-      progress: 50,
-      guard: {
-        id: 3,
-        name: 'David Lee',
-        initials: 'DL'
-      },
-      lastScan: {
-        minutesAgo: 45,
-        isLate: true
-      }
-    },
-    {
-      id: 4,
-      startTime: '10:00 AM',
-      endTime: '06:00 PM',
-      site: 'Manufacturing Wing D - Floor 2',
-      status: 'active',
-      progress: 35,
-      guard: {
-        id: 8,
-        name: 'Kevin Torres',
-        initials: 'KT'
-      },
-      lastScan: {
-        minutesAgo: 8,
-        isLate: false
-      }
-    },
-    {
-      id: 5,
-      startTime: '12:00 PM',
-      endTime: '08:00 PM',
-      site: 'East Campus Security - Gate 3',
-      status: 'upcoming',
-      startsIn: '2h'
-    },
-    {
-      id: 6,
-      startTime: '02:00 PM',
-      endTime: '10:00 PM',
-      site: 'Building A - South Wing',
-      status: 'upcoming',
-      startsIn: '4h',
-      guard: {
-        id: 4,
-        name: 'Sarah Chen',
-        initials: 'SC'
-      }
-    },
-    {
-      id: 7,
-      startTime: '04:00 PM',
-      endTime: '12:00 AM',
-      site: 'West Perimeter - Patrol Route',
-      status: 'unassigned'
-    },
-    {
-      id: 8,
-      startTime: '06:00 PM',
-      endTime: '02:00 AM',
-      site: 'Parking Structure C - Level 3',
-      status: 'upcoming',
-      startsIn: '8h',
-      guard: {
-        id: 6,
-        name: 'Lisa Wang',
-        initials: 'LW'
-      }
+  const todaysShifts = getTodaysScheduledShifts();
+  
+  // Helper function to get initials
+  const getInitials = (name: string): string => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+  
+  // Helper function to convert 24h time to 12h format
+  const formatTime = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+  
+  // Helper function to determine shift status based on current time
+  const getShiftStatus = (startTime: string, endTime: string): { status: 'active' | 'upcoming' | 'completed', progress?: number, startsIn?: string } => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTotalMinutes = currentHour * 60 + currentMinutes;
+    
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const startTotalMinutes = startHour * 60 + startMinute;
+    
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    let endTotalMinutes = endHour * 60 + endMinute;
+    // Handle midnight crossing (e.g., 00:00)
+    if (endHour < startHour) {
+      endTotalMinutes += 24 * 60;
     }
-  ];
+    
+    // Determine status
+    if (currentTotalMinutes < startTotalMinutes) {
+      // Upcoming shift
+      const minutesUntilStart = startTotalMinutes - currentTotalMinutes;
+      const hoursUntilStart = Math.floor(minutesUntilStart / 60);
+      const startsIn = hoursUntilStart > 0 ? `${hoursUntilStart}h` : `${minutesUntilStart}m`;
+      return { status: 'upcoming', startsIn };
+    } else if (currentTotalMinutes >= startTotalMinutes && currentTotalMinutes < endTotalMinutes) {
+      // Active shift - calculate progress
+      const shiftDuration = endTotalMinutes - startTotalMinutes;
+      const elapsed = currentTotalMinutes - startTotalMinutes;
+      const progress = Math.round((elapsed / shiftDuration) * 100);
+      return { status: 'active', progress };
+    } else {
+      // Completed shift
+      return { status: 'completed' };
+    }
+  };
+  
+  // Convert scheduled shifts to operations format
+  return todaysShifts.map(shift => {
+    const shiftStatus = getShiftStatus(shift.startTime, shift.endTime);
+    
+    const operation: ShiftOperation = {
+      id: shift.id,
+      startTime: formatTime(shift.startTime),
+      endTime: formatTime(shift.endTime),
+      site: shift.location,
+      status: shiftStatus.status,
+      progress: shiftStatus.progress,
+      startsIn: shiftStatus.startsIn,
+      guard: {
+        id: shift.guardId,
+        name: shift.guardName,
+        initials: getInitials(shift.guardName)
+      }
+    };
+    
+    // Add simulated last scan data for active shifts
+    if (shiftStatus.status === 'active') {
+      const minutesAgo = Math.floor(Math.random() * 30) + 1;
+      operation.lastScan = {
+        minutesAgo,
+        isLate: minutesAgo > 15 // Consider late if more than 15 minutes
+      };
+    }
+    
+    return operation;
+  });
 };
 
 export function DailyOperationsTimeline({ 
@@ -181,9 +162,10 @@ export function DailyOperationsTimeline({
           Today's Operations
         </div>
         <button 
-          className="button-ghost"
+          className="button-secondary"
           onClick={onViewFullSchedule}
         >
+          <Calendar size={16} />
           View Full Schedule
         </button>
       </div>

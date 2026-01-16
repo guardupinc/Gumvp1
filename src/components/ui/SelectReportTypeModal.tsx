@@ -2,12 +2,12 @@ import React from 'react';
 import { X, AlertTriangle, ClipboardList, Wrench, UserX, FileSignature } from 'lucide-react';
 
 interface SelectReportTypeModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
   onSelectType: (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => void;
 }
 
-export function SelectReportTypeModal({ isOpen, onClose, onSelectType }: SelectReportTypeModalProps) {
+export function SelectReportTypeModal({ isOpen = true, onClose, onSelectType }: SelectReportTypeModalProps) {
   if (!isOpen) return null;
 
   const handleCardClick = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => {
@@ -25,9 +25,9 @@ export function SelectReportTypeModal({ isOpen, onClose, onSelectType }: SelectR
         </div>
 
         <div className="modal-body">
-          {/* Section 1: Client-Facing Reports */}
+          {/* Section 1: Client Deliverables */}
           <div className="report-type-section">
-            <h3 className="section-header">📋 Client-Facing Reports</h3>
+            <h3 className="section-header">📋 Client Deliverables</h3>
             <p className="section-subtext">Reports the client will eventually see</p>
             
             <div className="report-type-cards">
@@ -72,9 +72,9 @@ export function SelectReportTypeModal({ isOpen, onClose, onSelectType }: SelectR
             </div>
           </div>
 
-          {/* Section 2: Internal Operations */}
+          {/* Section 2: Internal Ops & HR */}
           <div className="report-type-section">
-            <h3 className="section-header">🔒 Internal Operations</h3>
+            <h3 className="section-header">🔒 Internal Ops & HR</h3>
             <p className="section-subtext">Private reports for company use only</p>
             
             <div className="report-type-cards">

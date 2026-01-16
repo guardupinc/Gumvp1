@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
+import { openEvidence } from '../../utils/openEvidence';
 import { Dropdown_Dark } from './Dropdown_Dark';
-import '../../edit-report-modal.css';
+import { formatDateOnly, formatTimeOnly } from '../../utils/timezone';
+import './EditReportModal.css';
 
 interface EditReportModalProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface EditReportModalProps {
   report: {
     id: number;
     referenceId: string;
+    reportCode?: string; // Canonical immutable report ID from reportIdentity.ts
     type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary';
     site: string;
     content: string;
@@ -21,11 +24,14 @@ interface EditReportModalProps {
     date?: string;
     incidentType?: string;
     urgency?: string;
-    policeCalled?: string;
+    policeCalled?: string; // Legacy field
     narrativeOnly?: string;
     caseId?: string;
     actionTaken?: string;
-    pdCaseNumber?: string;
+    pdCaseNumber?: string; // Legacy field
+    // New law enforcement fields (snake_case)
+    police_called?: boolean | string;
+    pd_case_number?: string;
     // DAR-specific fields
     shiftStart?: string;
     shiftEnd?: string;
@@ -74,6 +80,21 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
   // Update form fields when report changes
   useEffect(() => {
     if (report) {
+      // ============================================================================
+      // DEBUG: Log report data when opening Supervisor Review modal
+      // ============================================================================
+      console.log('='.repeat(80));
+      console.log('[EditReportModal] Opening Supervisor Review for Report:');
+      console.log('Report ID:', report.id);
+      console.log('Report Code:', report.reportCode);
+      console.log('Report Object:', report); // Use console.log directly instead of JSON.stringify
+      console.log('--- Police/Law Enforcement Fields ---');
+      console.log('police_called (new):', (report as any).police_called);
+      console.log('policeCalled (legacy):', report.policeCalled);
+      console.log('pd_case_number (new):', (report as any).pd_case_number);
+      console.log('pdCaseNumber (legacy):', report.pdCaseNumber);
+      console.log('='.repeat(80));
+      
       setCategory(report.type);
       // Use report.location if available, otherwise show "Unknown Location"
       setLocation(report.location || 'Unknown Location');
@@ -87,6 +108,15 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
   }, [report]);
 
   if (!isOpen || !report) return null;
+
+  // ============================================================================
+  // Backward-compatible field accessors for police/PD fields
+  // ============================================================================
+  const policeCalled = report.police_called !== undefined 
+    ? (report.police_called === true || report.police_called === 'Yes' ? 'Yes' : 'No')
+    : report.policeCalled || 'No';
+  
+  const pdCaseNumber = report.pd_case_number || report.pdCaseNumber || '';
 
   const handleSave = () => {
     onSave(report.id, {
@@ -152,7 +182,7 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
       <div className="edit-report-modal supervisor-review">
         {/* Header */}
         <div className="edit-report-modal-header">
-          <h2>Supervisor Review: {report?.referenceId || 'New Report'}</h2>
+          <h2>Supervisor Review: {report?.reportCode || report?.referenceId || 'New Report'}</h2>
           <button className="edit-report-modal-close" onClick={handleCancel}>
             <X size={20} />
           </button>
@@ -224,14 +254,14 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
           {/* Metadata Grid - Conditional Layout Based on Report Type */}
           {category === 'Incident' ? (
             // INCIDENT REPORT METADATA - 5 or 6 Columns (with PD Case Number if applicable)
-            <div className="metadata-grid" style={{ gridTemplateColumns: report.policeCalled === 'Yes' && report.pdCaseNumber ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)' }}>
+            <div className="metadata-grid" style={{ gridTemplateColumns: policeCalled === 'Yes' && pdCaseNumber ? 'repeat(6, 1fr)' : 'repeat(5, 1fr)' }}>
               <div className="metadata-field">
                 <label className="metadata-label">Date of Incident</label>
-                <div className="metadata-value">{report.date || 'N/A'}</div>
+                <div className="metadata-value">{formatDateOnly(report.date)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Time of Incident</label>
-                <div className="metadata-value">{report.time || 'N/A'}</div>
+                <div className="metadata-value">{formatTimeOnly(report.time)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Incident Type</label>
@@ -243,12 +273,12 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Police Called?</label>
-                <div className="metadata-value metadata-police">{report.policeCalled || 'N/A'}</div>
+                <div className="metadata-value metadata-police">{policeCalled}</div>
               </div>
-              {report.policeCalled === 'Yes' && (
+              {policeCalled === 'Yes' && pdCaseNumber && (
                 <div className="metadata-field">
-                  <label className="metadata-label">PD Case Number</label>
-                  <div className="metadata-value">{report.pdCaseNumber || 'N/A'}</div>
+                  <label className="metadata-label">PD Case #</label>
+                  <div className="metadata-value">{pdCaseNumber}</div>
                 </div>
               )}
             </div>
@@ -257,11 +287,11 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             <div className="metadata-grid">
               <div className="metadata-field">
                 <label className="metadata-label">Date Reported</label>
-                <div className="metadata-value">{report.date || 'N/A'}</div>
+                <div className="metadata-value">{formatDateOnly(report.date)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Time Detected</label>
-                <div className="metadata-value">{report.time || 'N/A'}</div>
+                <div className="metadata-value">{formatTimeOnly(report.time)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Category</label>
@@ -289,11 +319,11 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             <div className="metadata-grid">
               <div className="metadata-field">
                 <label className="metadata-label">Date of Incident</label>
-                <div className="metadata-value">{report.date || 'N/A'}</div>
+                <div className="metadata-value">{formatDateOnly(report.date)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Time of Incident</label>
-                <div className="metadata-value">{report.time || 'N/A'}</div>
+                <div className="metadata-value">{formatTimeOnly(report.time)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Employee Name</label>
@@ -321,7 +351,7 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
             <div className="metadata-grid">
               <div className="metadata-field">
                 <label className="metadata-label">Date</label>
-                <div className="metadata-value">{report.date || 'N/A'}</div>
+                <div className="metadata-value">{formatDateOnly(report.date)}</div>
               </div>
               <div className="metadata-field">
                 <label className="metadata-label">Shift Start</label>
@@ -387,9 +417,9 @@ export function EditReportModal({ isOpen, onClose, onSave, onApprove, onReject, 
                     <img 
                       src={attachment.url} 
                       alt={attachment.name}
-                      onClick={() => window.open(attachment.url, '_blank')}
+                      onClick={() => openEvidence(attachment)}
                       className="cursor-pointer"
-                      title="Click to view full size"
+                      title="Click to open in new tab"
                     />
                     <button 
                       className="evidence-remove-btn"

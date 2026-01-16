@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { GUSelect } from './GUSelect';
 
 interface ReportMode {
   type: 'maintenance' | 'incident' | 'dar' | 'disciplinary' | 'shift-passon';
@@ -150,29 +151,25 @@ export function EnhancedReportModal({ isOpen, onClose, mode, officerName, onSubm
 
           {/* ROW 2: Classification */}
           <div className="form-row-split">
-            <div className="form-field">
-              <label htmlFor="incident-category" className="form-label">
-                Incident Category
-              </label>
-              <select
-                id="incident-category"
-                value={incidentCategory}
-                onChange={(e) => setIncidentCategory(e.target.value)}
-                className="category-dropdown"
-                required
-              >
-                <option value="">Select Type...</option>
-                <option value="theft">Theft</option>
-                <option value="trespassing">Trespassing</option>
-                <option value="vandalism">Vandalism</option>
-                <option value="medical-emergency">Medical Emergency</option>
-                <option value="fire-alarm">Fire Alarm</option>
-                <option value="assault">Assault</option>
-                <option value="noise-complaint">Noise Complaint</option>
-                <option value="suspicious-activity">Suspicious Activity</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            <GUSelect
+              label="Incident Category"
+              value={incidentCategory}
+              onChange={setIncidentCategory}
+              options={[
+                { value: '', label: 'Select Type...' },
+                { value: 'theft', label: 'Theft' },
+                { value: 'trespassing', label: 'Trespassing' },
+                { value: 'vandalism', label: 'Vandalism' },
+                { value: 'medical-emergency', label: 'Medical Emergency' },
+                { value: 'fire-alarm', label: 'Fire Alarm' },
+                { value: 'assault', label: 'Assault' },
+                { value: 'noise-complaint', label: 'Noise Complaint' },
+                { value: 'suspicious-activity', label: 'Suspicious Activity' },
+                { value: 'other', label: 'Other' }
+              ]}
+              placeholder="Select Type..."
+              required
+            />
             <div className="form-field">
               <label className="form-label">Urgency</label>
               <div className="urgency-segmented-control">

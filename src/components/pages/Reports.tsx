@@ -1,33 +1,106 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FileText, CheckCircle, X, Send, Calendar, Filter, Eye, Check, Plus } from 'lucide-react';
+import { FileText, CheckCircle, X, Send, Calendar, Filter, Eye, Check, Plus, AlertTriangle, Download } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Dropdown_Dark } from '../ui/Dropdown_Dark';
 import { DatePickerModal } from '../ui/DatePickerModal';
 import { ReportCard } from '../ui/ReportCard';
 import { EditReportModal, ReportUpdates } from '../ui/EditReportModal';
 import { ReportDetailsModal } from '../ui/ReportDetailsModal';
-import { PDFPreviewModal } from '../ui/PDFPreviewModal';
-import { EmailConfirmModal } from '../ui/EmailConfirmModal';
+
 import { SelectReportTypeModal } from '../ui/SelectReportTypeModal';
 import { CreateReportModal } from '../ui/CreateReportModal';
 import { EnhancedReportModal } from '../ui/EnhancedReportModal';
-import { useAppState } from '../../contexts/AppStateContext';
+import { ReportsQueueTable } from '../ui/ReportsQueueTable';
+import { BatchRejectModal } from '../ui/BatchRejectModal';
+import { RejectReportModal } from '../modals/RejectReportModal';
+import { RequestChangesModal } from '../modals/RequestChangesModal';
+import { ExtendedFilters, ExtendedFiltersState } from '../ui/ExtendedFilters';
+import { ReportSummarySidebar } from '../reports/ReportSummarySidebar';
+import { calculatePendingCounts } from '../reports/reportSummary';
+import { useAppState, canApproveReports, canEditReport } from '../../contexts/AppStateContext';
 import { toast } from 'sonner';
+import { formatTimestamp as formatTimestampTz, getDisplayTimezone } from '../../utils/timezone';
+import { reportsAPI } from '../../utils/apiClient';
 import '../../reports.css';
+import '../../modals.css';
+
+// ============================================================================
+// DATE FORMATTING UTILITIES - Convert UTC timestamps to local timezone
+// ============================================================================
+
+/**
+ * Formats a UTC timestamp (from database) to local timezone
+ * @param dateString - ISO timestamp from database (e.g., "2026-01-09T04:44:44.442Z" in UTC)
+ * @returns Formatted string in local timezone like "Jan 8, 2026 · 11:44 PM" (America/New_York)
+ */
+const formatTimestamp = (dateString: string | undefined): string => {
+  if (!dateString) return 'N/A';
+  
+  // If it's already in the desired format (contains "·" or "•"), return as-is
+  if (dateString.includes('·') || dateString.includes('•')) {
+    return dateString;
+  }
+  
+  // Check if it's an ISO timestamp (contains 'T' or 'Z')
+  if (dateString.includes('T') || dateString.includes('Z')) {
+    // Use timezone utility to format in local timezone
+    const displayTz = getDisplayTimezone();
+    const date = new Date(dateString);
+    
+    // Format: "Jan 8, 2026 · 11:44 PM" in local timezone
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: displayTz,
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).format(date).replace(',', ' ·');
+  }
+  
+  // Return as-is if it's not ISO format
+  return dateString;
+};
+
+/**
+ * Converts any date string to UTC format for tooltip display
+ * @param dateString - Any date string
+ * @returns UTC formatted string like "2026-01-08 05:44:44Z"
+ */
+const getUTCTimestamp = (dateString: string | undefined): string => {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    return date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+  } catch {
+    return dateString; // Fallback to original if parsing fails
+  }
+};
 
 export type ClientType = 'building-a' | 'global-logistics' | 'tech-innovations';
 
-interface Report {
+// ============================================================================
+// NORMALIZED REPORT TYPE HELPER
+// ============================================================================
+// Normalized report type enum
+export type ReportType = 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift_pass_on' | 'other';
+
+export interface Report {
   id: number;
   referenceId: string;
-  caseId?: string;            // Auto-generated Case ID (e.g., "#IR-2026-8492")
-  type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary';
+  reportCode: string;         // CANONICAL: Immutable report code (e.g., "DIS-2026-000001")
+  caseId?: string;            // Auto-generated Case ID (e.g., "#IR-2026-000001")
+  type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary' | 'Shift Pass-On'; // Legacy field for display
+  reportType: ReportType;     // Normalized field for business logic
   priority: 'normal' | 'high';
   guardName: string;
   site: string;
   timestamp: string;
   content: string;
-  status: 'pending' | 'approved' | 'rejected' | 'sent';
+  status: 'pending' | 'approved' | 'rejected' | 'sent' | 'draft';
+  org_id?: string;            // Organization ID for multi-tenant filtering
   rejectionNote?: string;
   approvedBy?: string;
   approvedByRole?: string;
@@ -59,55 +132,65 @@ interface Report {
   violationType?: string;
   disciplineLevel?: string;
   correctiveAction?: string;
-}
-
-interface ClientPackage {
-  id: number;
-  clientName: string;
-  siteName: string;
-  reportCount: number;
-  date?: string;
-  reports: {
-    type: string;
-    id: string;
-    status: 'ready' | 'pending';
-  }[];
+  // Shift Pass-On specific fields
+  shift?: string;  // Day / Swing / Overnight
+  // New fields for MVP upgrade
+  assignedTo?: string;  // Reviewer assigned to this report
+  createdBy?: string;   // User who created this report (for draft ownership)
+  revisionOfReportId?: number;  // Reference to original rejected report if this is a revision
 }
 
 interface ReportsProps {
   reports: Report[];
   onNavigateToReport?: (clientType: ClientType) => void;
-  is_IR2024_1156_Approved: boolean;
-  setIs_IR2024_1156_Approved: (value: boolean) => void;
-  is_DAR445_Approved: boolean;
-  setIs_DAR445_Approved: (value: boolean) => void;
-  is_DAR446_Approved: boolean;
-  setIs_DAR446_Approved: (value: boolean) => void;
+  autoOpenModal?: 'select-report-type' | 'review-queue';
+  onModalOpened?: () => void;
 }
 
-export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, setIs_IR2024_1156_Approved, is_DAR445_Approved, setIs_DAR445_Approved, is_DAR446_Approved, setIs_DAR446_Approved }: ReportsProps) {
-  const { currentUser, syncReportToGuardVault, broadcastVaultEntry, addReport, updateReportStatus, updateReport, getPreviewId, addVaultDocument } = useAppState();
+export function Reports({ reports, onNavigateToReport, autoOpenModal, onModalOpened }: ReportsProps) {
+  const { currentUser, approveReport, rejectReport, addReport, updateReportStatus, updateReport, deleteReport, getPreviewId, addVaultDocument, getDraftCounter, setAppState } = useAppState();
   const [selectedReportIds, setSelectedReportIds] = useState<Set<number>>(new Set());
   const [dateRange, setDateRange] = useState<string>('last-7-days');
   const [reportType, setReportType] = useState<string>('all');
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<[Date, Date] | null>(null);
   const [customDateLabel, setCustomDateLabel] = useState<string>('Custom Range');
-  const [statusTab, setStatusTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [statusTab, setStatusTab] = useState<'pending' | 'approved' | 'rejected' | 'drafts'>('pending');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [detailsReport, setDetailsReport] = useState<Report | null>(null);
-  const [isPDFPreviewModalOpen, setIsPDFPreviewModalOpen] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<ClientPackage | null>(null);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailPackage, setEmailPackage] = useState<ClientPackage | null>(null);
-  const [sentPackageIds, setSentPackageIds] = useState<Set<number>>(new Set());
-  const [isSending, setIsSending] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [sentSiteName, setSentSiteName] = useState('');
   const [isSelectReportTypeModalOpen, setIsSelectReportTypeModalOpen] = useState(false);
   const [isCreateReportModalOpen, setIsCreateReportModalOpen] = useState(false);
+
+  // Auto-open modal if requested from QuickActions or Dashboard
+  useEffect(() => {
+    if (autoOpenModal === 'select-report-type') {
+      setIsSelectReportTypeModalOpen(true);
+      if (onModalOpened) {
+        onModalOpened();
+      }
+    } else if (autoOpenModal === 'review-queue') {
+      // Set to pending tab
+      setStatusTab('pending');
+      
+      // Get pending reports sorted by timestamp (oldest first)
+      const pendingReports = reports
+        .filter(r => r.status === 'pending')
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      // Auto-open first pending report if exists
+      if (pendingReports.length > 0) {
+        setDetailsReport(pendingReports[0]);
+        setIsDetailsModalOpen(true);
+      }
+      
+      if (onModalOpened) {
+        onModalOpened();
+      }
+    }
+  }, [autoOpenModal, onModalOpened, reports]);
+
   const [createReportType, setCreateReportType] = useState<'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon'>('incident');
   const [generatedCaseId, setGeneratedCaseId] = useState<string>(''); // Auto-generated Case ID for current report
   const [isEnhancedReportModalOpen, setIsEnhancedReportModalOpen] = useState(false);
@@ -121,6 +204,19 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     submitButtonText: string;
     icon: string;
   } | null>(null);
+  const [isBatchRejectModalOpen, setIsBatchRejectModalOpen] = useState(false);
+  const [batchRejectReason, setBatchRejectReason] = useState<string>('');
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isRequestChangesModalOpen, setIsRequestChangesModalOpen] = useState(false);
+  const [rejectingReportId, setRejectingReportId] = useState<number | null>(null);
+  const [extendedFilters, setExtendedFilters] = useState<ExtendedFiltersState>({
+    site: 'all',
+    reportTypes: [],
+    hasAttachments: null,
+    filedBy: 'all',
+    assigned: 'all'
+  });
+  const [selectedSummaryType, setSelectedSummaryType] = useState<string | null>(null);
 
   // ============================================================================
   // HELPER: Sequential ID Generation
@@ -138,6 +234,8 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       prefix = 'MNT';
     } else if (category.includes('DAR') || category.includes('dar')) {
       prefix = 'DAR';
+    } else if (category.includes('shift') || category.includes('passon')) {
+      prefix = 'SPO'; // Shift Pass-On prefix
     }
 
     const year = new Date().getFullYear();
@@ -161,7 +259,8 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     const maxNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
     const nextNum = maxNum + 1;
     
-    return `${prefixPattern}${nextNum}`;
+    // Use 6-digit format for report numbers
+    return `${prefixPattern}${String(nextNum).padStart(6, '0')}`;
   };
 
   // ============================================================================
@@ -183,62 +282,55 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     
   }, [createReportType, isCreateReportModalOpen, isSelectReportTypeModalOpen, reports]); // Re-run whenever report type changes or reports array changes
 
-  // Derive Client Outbox packages from approved reports grouped by site
-  const outboxPackages = useMemo(() => {
-    // Filter approved reports only
-    const approvedReports = reports.filter(r => r.status === 'approved');
-    
-    // Group by site
-    const groupedBySite: {[site: string]: Report[]} = {};
-    approvedReports.forEach(report => {
-      if (!groupedBySite[report.site]) {
-        groupedBySite[report.site] = [];
-      }
-      groupedBySite[report.site].push(report);
-    });
-    
-    // Convert to package format
-    const packages: ClientPackage[] = Object.keys(groupedBySite).map((site, index) => {
-      const siteReports = groupedBySite[site];
-      const firstReport = siteReports[0];
-      
-      return {
-        id: index + 1,
-        siteName: site,
-        clientName: firstReport?.site || site, // Use site as client name for now
-        reportCount: siteReports.length,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        reports: siteReports.map(report => ({
-          type: report.type === 'Incident' ? 'Incident Report' : 
-                report.type === 'DAR' ? 'Daily Activity Report' : 'Maintenance Report',
-          id: report.referenceId,
-          status: 'ready' as const // All approved reports are ready
-        }))
-      };
-    });
-    
-    return packages;
-  }, [reports]);
-
   // Helper function to determine if report matches date filter
   const matchesDateFilter = (report: Report, index: number): boolean => {
-    // For demo purposes, simulate date filtering based on report position
-    // Top 2 reports = "today" (Dec 30, 2025), next 4 = "yesterday" (Dec 29), next 4 = older (Dec 28, Dec 27)
+    // Parse the report's date from timestamp (handles both ISO and formatted timestamps)
+    let reportDate: Date;
+    
+    if (report.timestamp) {
+      if (report.timestamp.includes('T') || report.timestamp.includes('Z')) {
+        // ISO format: "2026-01-08T05:44:44.442Z"
+        reportDate = new Date(report.timestamp);
+      } else {
+        // Formatted timestamp: "Dec 30, 2025 • 11:45 PM"
+        const reportDateStr = report.timestamp.split('•')[0].trim();
+        reportDate = new Date(reportDateStr);
+      }
+    } else {
+      // Fallback: use current date if no timestamp
+      reportDate = new Date();
+    }
+    
+    // Get current date for comparison
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Normalize report date to start of day for comparison
+    const reportDateNormalized = new Date(
+      reportDate.getFullYear(),
+      reportDate.getMonth(),
+      reportDate.getDate()
+    );
+    
     if (dateRange === 'today') {
-      return index < 2;
+      return reportDateNormalized.getTime() === today.getTime();
     } else if (dateRange === 'yesterday') {
-      return index >= 2 && index < 6;
+      return reportDateNormalized.getTime() === yesterday.getTime();
     } else if (dateRange === 'last-7-days') {
-      return index < 10;
+      // Show reports from last 7 days (including today)
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return reportDateNormalized >= sevenDaysAgo;
     } else if (dateRange === 'last-30-days') {
-      return true; // Show all
+      // Show reports from last 30 days (including today)
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return reportDateNormalized >= thirtyDaysAgo;
     } else if (dateRange === 'custom') {
       // Strict date range filtering based on actual custom range selection
       if (!customDateRange) return false;
-      
-      // Parse the report's date from timestamp (e.g., "Dec 30, 2025 • 11:45 PM")
-      const reportDateStr = report.timestamp.split('•')[0].trim(); // "Dec 30, 2025"
-      const reportDate = new Date(reportDateStr);
       
       // Get start and end dates from custom range (normalize to start of day)
       const [startDate, endDate] = customDateRange;
@@ -251,13 +343,11 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       const reportDateNormalized = new Date(reportDate);
       reportDateNormalized.setHours(0, 0, 0, 0);
       
-      // Boolean visibility logic:
-      // Is_Card_Dec28_Visible = reportDate >= rangeStart (e.g., False when range starts Dec 29)
-      // Is_Card_Dec30_Visible = reportDate <= rangeEnd (e.g., True when range ends Dec 30)
-      const isVisible = reportDateNormalized >= rangeStart && reportDateNormalized <= rangeEnd;
-      
-      return isVisible;
+      return reportDateNormalized >= rangeStart && reportDateNormalized <= rangeEnd;
+    } else if (dateRange === 'all') {
+      return true; // Show all reports
     }
+    
     return true; // Default: show all
   };
 
@@ -275,48 +365,149 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     return true;
   };
 
-  // Apply filters to reports based on status tab
+  // ============================================================================
+  // EXTENDED FILTERS LOGIC
+  // ============================================================================
+  
+  // Helper function to check if report matches all extended filter criteria
+  const matchesExtendedFilters = (report: Report): boolean => {
+    // Site filter
+    if (extendedFilters.site !== 'all' && report.site !== extendedFilters.site) {
+      return false;
+    }
+
+    // Report Types filter (multi-select)
+    if (extendedFilters.reportTypes.length > 0) {
+      const reportTypeNormalized = report.reportType || report.type.toLowerCase();
+      const matchesType = extendedFilters.reportTypes.some(filterType => {
+        if (filterType === 'incident') return reportTypeNormalized === 'incident' || report.type === 'Incident';
+        if (filterType === 'dar') return reportTypeNormalized === 'dar' || report.type === 'DAR';
+        if (filterType === 'maintenance') return reportTypeNormalized === 'maintenance' || report.type === 'Maintenance';
+        if (filterType === 'disciplinary') return reportTypeNormalized === 'disciplinary' || report.type === 'Disciplinary';
+        if (filterType === 'shift_pass_on') return reportTypeNormalized === 'shift_pass_on' || report.type === 'Shift Pass-On';
+        return false;
+      });
+      if (!matchesType) return false;
+    }
+
+    // Has Attachments filter
+    if (extendedFilters.hasAttachments !== null) {
+      const hasAttachments = (report.attachments?.length || 0) > 0;
+      if (extendedFilters.hasAttachments !== hasAttachments) {
+        return false;
+      }
+    }
+
+    // Filed By filter
+    if (extendedFilters.filedBy !== 'all' && report.guardName !== extendedFilters.filedBy) {
+      return false;
+    }
+
+    // Note: Status filtering is handled by the status tabs (Pending/Approved/Rejected)
+    // so we don't need to apply the extended status filter here
+
+    // Assigned Reviewer filter
+    if (extendedFilters.assigned !== 'all') {
+      if (extendedFilters.assigned === 'unassigned') {
+        if (report.assignedTo) return false;
+      } else if (extendedFilters.assigned === 'me') {
+        if (report.assignedTo !== currentUser.name) return false;
+      } else if (extendedFilters.assigned === 'others') {
+        if (!report.assignedTo || report.assignedTo === currentUser.name) return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Extract unique sites and guards for filter options
+  const uniqueSites = useMemo(() => {
+    const sites = Array.from(new Set(reports.map(r => r.site))).sort();
+    return sites;
+  }, [reports]);
+
+  const uniqueGuards = useMemo(() => {
+    const guards = Array.from(new Set(reports.map(r => r.guardName))).sort();
+    return guards;
+  }, [reports]);
+
+  // Apply filters to reports based on status tab + extended filters
   const filteredReportsByStatus = reports
-    .filter(r => r.status === statusTab)
+    .filter(r => {
+      // For drafts, only show user's own drafts
+      if (statusTab === 'drafts') {
+        return r.status === 'draft' && r.createdBy === currentUser.name;
+      }
+      return r.status === statusTab;
+    })
     .map((report, index) => ({ report, index }))
-    .filter(({ report, index }) => matchesTypeFilter(report) && matchesDateFilter(report, index))
+    .filter(({ report, index }) => 
+      matchesTypeFilter(report) && 
+      matchesDateFilter(report, index) && 
+      matchesExtendedFilters(report)
+    )
     .map(({ report }) => report);
 
-  // Calculate counts for each status tab (based on current date/type filters)
+  // Calculate counts for each status tab (based on current date/type/extended filters)
   const pendingCount = reports
     .filter(r => r.status === 'pending')
-    .filter((report, index) => matchesTypeFilter(report) && matchesDateFilter(report, index))
+    .filter((report, index) => 
+      matchesTypeFilter(report) && 
+      matchesDateFilter(report, index) && 
+      matchesExtendedFilters(report)
+    )
     .length;
   const approvedCount = reports
     .filter(r => r.status === 'approved')
-    .filter((report, index) => matchesTypeFilter(report) && matchesDateFilter(report, index))
+    .filter((report, index) => 
+      matchesTypeFilter(report) && 
+      matchesDateFilter(report, index) && 
+      matchesExtendedFilters(report)
+    )
     .length;
   const rejectedCount = reports
     .filter(r => r.status === 'rejected')
-    .filter((report, index) => matchesTypeFilter(report) && matchesDateFilter(report, index))
+    .filter((report, index) => 
+      matchesTypeFilter(report) && 
+      matchesDateFilter(report, index) && 
+      matchesExtendedFilters(report)
+    )
+    .length;
+  const draftsCount = reports
+    .filter(r => r.status === 'draft' && r.createdBy === currentUser.name)
+    .filter((report, index) => 
+      matchesTypeFilter(report) && 
+      matchesDateFilter(report, index) && 
+      matchesExtendedFilters(report)
+    )
     .length;
 
-  const displayedReports = filteredReportsByStatus;
+  // Apply additional filter for summary type selection
+  const displayedReports = selectedSummaryType 
+    ? filteredReportsByStatus.filter(report => report.type === selectedSummaryType)
+    : filteredReportsByStatus;
   const allSelected = displayedReports.length > 0 && selectedReportIds.size === displayedReports.length;
 
-  // Helper function to generate document metadata based on report type
-  const generateDocumentMetadata = (report: Report): { fileName: string; category: 'Incident Reports' | 'Daily Reports' | 'Maintenance' } => {
-    if (report.type === 'Maintenance') {
-      return {
-        fileName: `Maintenance Request ${report.referenceId}.pdf`,
-        category: 'Maintenance'
-      };
-    } else if (report.type === 'Incident') {
-      return {
-        fileName: `Incident Report ${report.referenceId}.pdf`,
-        category: 'Incident Reports'
-      };
-    } else { // DAR
-      return {
-        fileName: `Daily Activity Report ${report.referenceId}.pdf`,
-        category: 'Daily Reports'
-      };
+  // Calculate pending counts by report type for summary sidebar
+  const pendingCountsByType = useMemo(() => {
+    return calculatePendingCounts(reports);
+  }, [reports]);
+
+  // Handle summary card click - filters by type and switches to pending tab
+  const handleSummaryTypeClick = (type: string) => {
+    if (selectedSummaryType === type) {
+      // Toggle off - clear filter
+      setSelectedSummaryType(null);
+    } else {
+      // Apply filter and switch to pending tab
+      setSelectedSummaryType(type);
+      setStatusTab('pending');
     }
+  };
+
+  // Handler to clear active filter
+  const handleClearFilter = () => {
+    setSelectedSummaryType(null);
   };
 
   const handleEdit = (report: Report) => {
@@ -325,200 +516,117 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     setIsEditModalOpen(true);
   };
 
+  // ============================================================================
+  // HANDLER: Open Edit Modal for Rejected Report Resubmission
+  // ============================================================================
+  /**
+   * Opens edit modal pre-filled with rejected report's data
+   * Does NOT modify the original rejected report (immutable audit trail)
+   * Only available to the creator of the rejected report
+   * User can choose: Save Draft or Resubmit for Review
+   */
+  const handleEditAndResubmit = (rejectedReport: Report) => {
+    // Permission check: Only creator can edit their own rejected reports
+    if (rejectedReport.createdBy !== currentUser.name) {
+      toast.error('You can only edit rejected reports you created');
+      return;
+    }
+
+    // Set the rejected report as the editing target
+    // Mark it as a resubmission to show different buttons in modal
+    setEditingReport({
+      ...rejectedReport,
+      isResubmission: true, // Flag to indicate this is a resubmission
+      revisionOfReportId: rejectedReport.id // Track original rejected report
+    } as any);
+    
+    // Determine report type for modal
+    const reportTypeMap: { [key: string]: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon' } = {
+      'Incident': 'incident',
+      'DAR': 'dar',
+      'Maintenance': 'maintenance',
+      'Disciplinary': 'disciplinary',
+      'Shift Pass-On': 'shift-passon'
+    };
+    
+    const modalReportType = reportTypeMap[rejectedReport.type] || 'incident';
+    setCreateReportType(modalReportType);
+    
+    // Open the create report modal in edit/resubmission mode
+    setIsCreateReportModalOpen(true);
+  };
+
   const handleReject = (reportId: number) => {
-    // Hard-coded user identity - self-contained rejection logic
-    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+    // DEBUG: Log rejection flow
+    console.log('[Reports] handleReject called with reportId:', reportId);
+    console.log('[Reports] Setting rejectingReportId to:', reportId);
+    console.log('[Reports] Setting isRejectModalOpen to: true');
     
-    // Create real-time timestamp
-    const time = new Date().toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
+    // Open the rejection modal instead of immediately rejecting
+    setRejectingReportId(reportId);
+    setIsRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = (rejectionReason: string) => {
+    if (!rejectingReportId) return;
     
-    // Construct complete signature string
-    const signature = `by ${currentUser.role} ${currentUser.name}`;
-    const rejectedAt = time;
+    // DEBUG: Log confirmation
+    console.log('[Reports] handleConfirmReject called');
+    console.log('[Reports] rejectingReportId:', rejectingReportId);
+    console.log('[Reports] rejectionReason:', rejectionReason);
     
-    updateReport(reportId, {
-      status: 'rejected' as const, 
-      rejectionNote: 'Not applicable',
-      rejectedBy: signature,
-      rejectedByRole: currentUser.role,
-      rejectedAt: rejectedAt
-    });
+    // ============================================================================
+    // CANONICAL REJECTION: Use global rejectReport() with reviewer metadata
+    // ============================================================================
+    rejectReport(rejectingReportId, rejectionReason);
     
     setSelectedReportIds(prev => {
       const newSet = new Set(prev);
-      newSet.delete(reportId);
+      newSet.delete(rejectingReportId);
       return newSet;
     });
+    
+    // Reset state and close modal
+    setRejectingReportId(null);
+    setIsRejectModalOpen(false);
+    
+    // Show success toast
+    toast.success('Report rejected successfully');
+    
+    // Note: Reports will automatically re-render when parent updates the reports prop
+    console.log('[Reports] Report rejected, list will auto-update from parent');
   };
 
   const handleApprove = (reportId: number) => {
-    // Find the report being approved to check its reference ID
-    const approvedReport = reports.find(r => r.id === reportId);
-    
-    // Hard-coded user identity - self-contained approval logic
-    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
-    
-    // Create real-time timestamp
-    const time = new Date().toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
-    
-    // Construct complete signature string
-    const signature = `by ${currentUser.role} ${currentUser.name}`;
-    const approvedAt = time;
-    
     // ============================================================================
-    // INTERNAL ROUTE: Disciplinary Reports
+    // CANONICAL APPROVAL: All approvals go through global approveReport()
     // ============================================================================
-    // Disciplinary reports bypass Client Outbox and go directly to Internal Vault
-    if (approvedReport?.type === 'Disciplinary') {
-      // Set status to 'archived' (NOT 'approved') - prevents Client Outbox inclusion
-      updateReport(reportId, {
-        status: 'archived' as const,
-        approvedBy: signature,
-        approvedByRole: currentUser.role,
-        approvedAt: approvedAt
-      });
-      
-      // File immediately to HR & Internal vault
-      addVaultDocument({
-        name: `Disciplinary Action - ${approvedReport.guardName} - ${approvedReport.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.pdf`,
-        category: 'HR & Internal',
-        uploadedBy: currentUser.name,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        size: '856 KB', // Mock size
-        status: 'Active',
-        reportReferenceId: approvedReport.referenceId
-      });
-      
-      // Sync to guard's employee history (for internal tracking)
-      syncReportToGuardVault(approvedReport.guardName, {
-        reportId: approvedReport.referenceId,
-        reportType: 'Disciplinary',
-        status: 'approved',
-        approvedBy: signature,
-        approvedAt: approvedAt,
-        site: approvedReport.site,
-        timestamp: approvedReport.timestamp
-      });
-      
-      // Show success notification
-      toast.success(`🔒 Disciplinary Report filed to Internal Vault (HR & Internal).`);
-      
-      // Deselect report
-      setSelectedReportIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(reportId);
-        return newSet;
-      });
-      
-      return; // Exit early - do NOT run standard approval logic
+    const report = reports.find(r => r.id === reportId);
+    
+    // DEBUG: Log current user to verify it's the supervisor, not the guard
+    console.log('='.repeat(80));
+    console.log('[Reports.tsx handleApprove] CURRENT USER CHECK:');
+    console.log('Current User:', currentUser);
+    console.log('Report Author (guardName):', report?.guardName);
+    console.log('Report Created By:', report?.createdBy);
+    console.log('='.repeat(80));
+    
+    // CRITICAL: Prevent guards from approving reports
+    if (currentUser.role === 'Guard' || currentUser.role === 'GUARD') {
+      console.error('❌ CRITICAL ERROR: Guard cannot approve reports!');
+      toast.error('Guards cannot approve reports. Please use a Supervisor/Admin account.');
+      return;
     }
     
-    // ============================================================================
-    // STANDARD ROUTE: Client-Facing Reports (DAR, Incident, Maintenance)
-    // ============================================================================
-    // Update the report status to approved with audit trail
-    updateReport(reportId, {
-      status: 'approved' as const,
-      approvedBy: signature,
-      approvedByRole: currentUser.role,
-      approvedAt: approvedAt
-    });
+    // Call canonical approval function
+    approveReport(reportId);
     
-    // Update state variables and Client Outbox based on approved report
-    if (approvedReport?.referenceId) {
-      const refId = approvedReport.referenceId;
-      
-      // Update specific state variables
-      if (refId === '#DAR-446') {
-        setIs_DAR446_Approved(true);
-      } else if (refId === '#DAR-445') {
-        setIs_DAR445_Approved(true);
-      } else if (refId === '#IR-2024-1156') {
-        setIs_IR2024_1156_Approved(true);
-      }
-      
-      // SyncToVault: File this approved report to the guard's employee history
-      if (approvedReport) {
-        syncReportToGuardVault(approvedReport.guardName, {
-          reportId: approvedReport.referenceId,
-          reportType: approvedReport.type,
-          status: 'approved',
-          approvedBy: signature,
-          approvedAt: approvedAt,
-          site: approvedReport.site,
-          timestamp: approvedReport.timestamp
-        });
-        
-        // Determine the correct Vault category based on report ID prefix or title
-        let vaultCategory = 'Daily Reports'; // Default
-        
-        // IF Title contains 'Incident' OR ID starts with '#IR': Set vaultCategory = 'Incident Reports'
-        if (approvedReport.type === 'Incident' || approvedReport.referenceId.startsWith('#IR')) {
-          vaultCategory = 'Incident Reports';
-        }
-        // IF Title contains 'Daily Activity' OR ID starts with '#DAR': Set vaultCategory = 'Daily Reports'
-        else if (approvedReport.type === 'DAR' || approvedReport.referenceId.startsWith('#DAR')) {
-          vaultCategory = 'Daily Reports';
-        }
-        // Check for maintenance requests
-        else if (approvedReport.referenceId.startsWith('#MAINT')) {
-          vaultCategory = 'Maintenance Reports';
-        }
-        // Check for disciplinary forms
-        else if (approvedReport.referenceId.startsWith('#DISC') || approvedReport.referenceId.startsWith('#WU')) {
-          vaultCategory = 'Internal Reports';
-        }
-        // Check for shift pass-on logs
-        else if (approvedReport.referenceId.startsWith('#PASS')) {
-          vaultCategory = 'Shift Logs';
-        }
-        
-        // Broadcast Global Vault Entry - Set newVaultEntry = true & store latestReportData
-        const reportTypeName = approvedReport.type === 'DAR' ? 'Daily Activity Report' : 'Incident Report';
-        broadcastVaultEntry({
-          name: `${reportTypeName} ${approvedReport.referenceId}`,
-          user: approvedReport.guardName,
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status: 'Active',
-          reportId: approvedReport.referenceId,
-          reportType: approvedReport.type,
-          site: approvedReport.site,
-          category: vaultCategory // Send the correct category to the Vault
-        });
-        
-        // Generate document metadata based on report type
-        const { fileName, category } = generateDocumentMetadata(approvedReport);
-        
-        // Add document to Vault
-        addVaultDocument({
-          name: fileName,
-          category: category,
-          uploadedBy: approvedReport.guardName,
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          size: '1.8 MB', // Mock size
-          status: 'Active',
-          reportReferenceId: approvedReport.referenceId
-        });
-        
-        // Show toast notification
-        toast.success(`✓ Report Approved & Filed to ${approvedReport.guardName}'s Personnel Record.`);
-      }
+    // Show success toast
+    if (report) {
+      toast.success(`✓ Report Approved & Filed to ${report.guardName}'s Personnel Record.`);
     }
     
+    // Deselect report
     setSelectedReportIds(prev => {
       const newSet = new Set(prev);
       newSet.delete(reportId);
@@ -549,10 +657,27 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
   const handleBatchApprove = () => {
     if (selectedReportIds.size === 0) return;
     
-    // Hard-coded user identity - self-contained approval logic
-    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+    // ============================================================================
+    // CANONICAL BATCH APPROVAL: All approvals go through global approveReport()
+    // ============================================================================
+    const approvedReports = reports.filter(r => selectedReportIds.has(r.id));
     
-    // Create real-time timestamp
+    // Approve each report using canonical function
+    approvedReports.forEach(report => {
+      approveReport(report.id);
+    });
+    
+    // Show batch success notification
+    toast.success(`✓ ${approvedReports.length} report(s) approved and filed to Vault.`);
+    
+    // Clear selections
+    setSelectedReportIds(new Set());
+  };
+
+  const handleBatchReject = (reason: string, note?: string) => {
+    if (selectedReportIds.size === 0) return;
+    
+    const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
     const time = new Date().toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -562,105 +687,40 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       hour12: true
     });
     
-    // Construct complete signature string
     const signature = `by ${currentUser.role} ${currentUser.name}`;
-    const approvedAt = time;
+    const rejectedAt = time;
     
-    // Get all reports being approved
-    const approvedReports = reports.filter(r => selectedReportIds.has(r.id));
+    // Build rejection note from reason and optional note
+    const reasonLabels: {[key: string]: string} = {
+      'missing-details': 'Missing details',
+      'wrong-type': 'Wrong report type',
+      'needs-clarification': 'Needs clarification',
+      'attachment-required': 'Attachment required',
+      'policy-format': 'Policy format issue',
+      'other': 'Other'
+    };
     
-    // Update all selected reports to approved status with signature
-    approvedReports.forEach(report => {
+    const reasonText = reasonLabels[reason] || reason;
+    const rejectionNote = note ? `${reasonText}: ${note}` : reasonText;
+    
+    const reportsToReject = reports.filter(r => selectedReportIds.has(r.id));
+    
+    reportsToReject.forEach(report => {
       updateReport(report.id, {
-        status: 'approved' as const,
-        approvedBy: signature,
-        approvedByRole: currentUser.role,
-        approvedAt: approvedAt
+        status: 'rejected' as const,
+        rejectionNote: rejectionNote,
+        rejectedBy: signature,
+        rejectedByRole: currentUser.role,
+        rejectedAt: rejectedAt
       });
     });
     
-    // Update state variables and Client Outbox for each approved report
-    approvedReports.forEach(report => {
-      const refId = report.referenceId;
-      
-      // Update specific state variables
-      if (refId === '#DAR-446') {
-        setIs_DAR446_Approved(true);
-      } else if (refId === '#DAR-445') {
-        setIs_DAR445_Approved(true);
-      } else if (refId === '#IR-2024-1156') {
-        setIs_IR2024_1156_Approved(true);
-      }
-      
-      // SyncToVault: File this approved report to the guard's employee history
-      if (report) {
-        syncReportToGuardVault(report.guardName, {
-          reportId: report.referenceId,
-          reportType: report.type,
-          status: 'approved',
-          approvedBy: signature,
-          approvedAt: approvedAt,
-          site: report.site,
-          timestamp: report.timestamp
-        });
-        
-        // Determine the correct Vault category based on report ID prefix or title
-        let vaultCategory = 'Daily Reports'; // Default
-        
-        // IF Title contains 'Incident' OR ID starts with '#IR': Set vaultCategory = 'Incident Reports'
-        if (report.type === 'Incident' || report.referenceId.startsWith('#IR')) {
-          vaultCategory = 'Incident Reports';
-        }
-        // IF Title contains 'Daily Activity' OR ID starts with '#DAR': Set vaultCategory = 'Daily Reports'
-        else if (report.type === 'DAR' || report.referenceId.startsWith('#DAR')) {
-          vaultCategory = 'Daily Reports';
-        }
-        // Check for maintenance requests
-        else if (report.referenceId.startsWith('#MAINT')) {
-          vaultCategory = 'Maintenance Reports';
-        }
-        // Check for disciplinary forms
-        else if (report.referenceId.startsWith('#DISC') || report.referenceId.startsWith('#WU')) {
-          vaultCategory = 'Internal Reports';
-        }
-        // Check for shift pass-on logs
-        else if (report.referenceId.startsWith('#PASS')) {
-          vaultCategory = 'Shift Logs';
-        }
-        
-        // Broadcast Global Vault Entry - Set newVaultEntry = true & store latestReportData
-        const reportTypeName = report.type === 'DAR' ? 'Daily Activity Report' : 'Incident Report';
-        broadcastVaultEntry({
-          name: `${reportTypeName} ${report.referenceId}`,
-          user: report.guardName,
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status: 'Active',
-          reportId: report.referenceId,
-          reportType: report.type,
-          site: report.site,
-          category: vaultCategory // Send the correct category to the Vault
-        });
-        
-        // Generate document metadata based on report type
-        const { fileName, category } = generateDocumentMetadata(report);
-        
-        // Add document to Vault
-        addVaultDocument({
-          name: fileName,
-          category: category,
-          uploadedBy: report.guardName,
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          size: '1.8 MB', // Mock size
-          status: 'Active',
-          reportReferenceId: report.referenceId
-        });
-        
-        // Show toast notification
-        toast.success(`✓ Report Approved & Filed to ${report.guardName}'s Personnel Record.`);
-      }
-    });
+    // Show batch success notification
+    toast.success(`✓ ${reportsToReject.length} report(s) rejected.`);
     
+    // Clear selections
     setSelectedReportIds(new Set());
+    setIsBatchRejectModalOpen(false);
   };
 
   const handleViewDetails = (reportId: number) => {
@@ -690,83 +750,121 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
   const hasPreviousReport = detailsReport ? reports.findIndex(r => r.id === detailsReport.id) > 0 : false;
   const hasNextReport = detailsReport ? reports.findIndex(r => r.id === detailsReport.id) < reports.length - 1 : false;
 
-  const handleGeneratePDF = (pkg: ClientPackage) => {
-    // Open PDF preview modal instead of navigating to a different page
-    // This prevents component unmounting and preserves all approval states
-    setSelectedPackage(pkg);
-    setIsPDFPreviewModalOpen(true);
+  // Handle approve from details modal with auto-queue
+  const handleDetailsModalApprove = (reportId: number) => {
+    const report = reports.find(r => r.id === reportId);
+    
+    // CRITICAL: Prevent guards from approving reports
+    if (currentUser.role === 'Guard' || currentUser.role === 'GUARD') {
+      console.error('❌ CRITICAL ERROR: Guard cannot approve reports!');
+      toast.error('Guards cannot approve reports. Please use a Supervisor/Admin account.');
+      return;
+    }
+    
+    // Call canonical approval function
+    approveReport(reportId);
+    
+    // Show success toast
+    if (report) {
+      toast.success(`✓ Report Approved & Filed to ${report.guardName}'s Personnel Record.`);
+    }
+    
+    // Auto-queue: Open next pending report
+    const pendingReports = reports
+      .filter(r => r.status === 'pending')
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    const currentIndex = pendingReports.findIndex(r => r.id === reportId);
+    
+    // If there's a next pending report, open it
+    if (currentIndex >= 0 && currentIndex < pendingReports.length - 1) {
+      setDetailsReport(pendingReports[currentIndex + 1]);
+    } else {
+      // No more pending reports, close modal and show toast
+      setIsDetailsModalOpen(false);
+      setDetailsReport(null);
+      toast.success('All pending reports reviewed.');
+    }
   };
 
-  const handleSendPackage = (pkg: ClientPackage) => {
-    // Open email confirmation modal
-    setEmailPackage(pkg);
-    setIsEmailModalOpen(true);
+  // Handle reject from details modal with auto-queue
+  const handleDetailsModalReject = (reportId: number) => {
+    // COMPLIANCE: Use Request Changes modal for pending reports
+    setRejectingReportId(reportId);
+    setIsRequestChangesModalOpen(true);
+    
+    // Close the details modal temporarily
+    setIsDetailsModalOpen(false);
   };
 
-  const handleEmailSend = () => {
-    if (!emailPackage) return;
+  // Override handleConfirmReject to support auto-queue after rejection
+  const handleConfirmRejectWithQueue = (rejectionReason: string) => {
+    if (!rejectingReportId) return;
     
-    // Start loading
-    setIsSending(true);
+    const reportId = rejectingReportId;
     
-    // Capture site name before we delete the package
-    const site = emailPackage.siteName || 'Client';
-    setSentSiteName(site);
+    // Call canonical rejection
+    rejectReport(reportId, rejectionReason);
     
-    // Simulate delay (1.5 seconds)
-    setTimeout(() => {
-      // Get current date for vault entries
-      const currentDate = new Date().toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-      
-      // Find all actual Report objects for this package
-      const packageReportIds = emailPackage.reports.map(r => r.id);
-      const packageReports = reports.filter(r => packageReportIds.includes(r.referenceId));
-      
-      // Archive each report in the package (mark as sent)
-      // NOTE: We do NOT add reports to Vault here - they were already added when approved
-      packageReports.forEach(report => {
-        // Archive the report by updating its status to 'sent'
-        updateReport(report.id, {
-          status: 'sent' as const
-        });
-      });
-      
-      // Save the Client Packet itself to Vault (this is the only new Vault entry)
-      addVaultDocument({
-        name: `Client Packet - ${emailPackage.siteName} - ${currentDate}.pdf`,
-        category: 'Client Packets',
-        uploadedBy: currentUser.name,
-        date: currentDate,
-        size: '2.5 MB', // Mock size
-        status: 'Active',
-        reportReferenceId: `PACKET-${emailPackage.siteName}-${Date.now()}`
-      });
-      
-      // Mark package as sent
-      setSentPackageIds(prev => {
-        const newSet = new Set(prev);
-        newSet.add(emailPackage.id);
-        return newSet;
-      });
-      
-      // Close the Email Modal
-      setIsEmailModalOpen(false);
-      
-      // Open the Success Modal
-      setIsSending(false);
-      setShowSuccessModal(true);
-    }, 1500);
+    // Show success toast
+    toast.success('Report rejected successfully');
+    
+    // Reset rejecting state
+    setRejectingReportId(null);
+    setIsRejectModalOpen(false);
+    
+    // Auto-queue: Open next pending report
+    const pendingReports = reports
+      .filter(r => r.status === 'pending')
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    const currentIndex = pendingReports.findIndex(r => r.id === reportId);
+    
+    // If there's a next pending report, open it
+    if (currentIndex >= 0 && currentIndex < pendingReports.length - 1) {
+      setDetailsReport(pendingReports[currentIndex + 1]);
+      setIsDetailsModalOpen(true);
+    } else {
+      // No more pending reports, show toast
+      setDetailsReport(null);
+      toast.success('All pending reports reviewed.');
+    }
   };
 
-  const handleCloseSuccessModal = () => {
-    setShowSuccessModal(false);
-    setIsSending(false); // Reset sending state
-    setSentSiteName(''); // Clear the temp name
-    setEmailPackage(null); // Clear the email package reference
+  // Handle request changes confirmation with auto-queue
+  const handleConfirmRequestChanges = (rejectionReason: string, notes?: string, notifyGuard?: boolean) => {
+    if (!rejectingReportId) return;
+    
+    const reportId = rejectingReportId;
+    
+    // COMPLIANCE: Call canonical rejection (status → "rejected" = "Changes Requested")
+    rejectReport(reportId, rejectionReason);
+    
+    // Show success toast
+    toast.success('Changes requested. Report returned to author.');
+    
+    // Reset state
+    setRejectingReportId(null);
+    setIsRequestChangesModalOpen(false);
+    
+    // Auto-queue: Open next pending report (review-queue flow)
+    if (autoOpenModal === 'review-queue') {
+      const pendingReports = reports
+        .filter(r => r.status === 'pending')
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      const currentIndex = pendingReports.findIndex(r => r.id === reportId);
+      
+      // If there's a next pending report, open it
+      if (currentIndex >= 0 && currentIndex < pendingReports.length - 1) {
+        setDetailsReport(pendingReports[currentIndex + 1]);
+        setIsDetailsModalOpen(true);
+      } else {
+        // No more pending reports, show toast
+        setDetailsReport(null);
+        toast.success('All pending reports reviewed.');
+      }
+    }
   };
 
   const handleDateRangeChange = (value: string) => {
@@ -796,6 +894,14 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
   };
 
   const handleCreateReportClick = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => {
+    // ============================================================================
+    // OBJECT TYPE ENFORCEMENT
+    // ============================================================================
+    // incident/dar/maintenance/disciplinary → Create REPORT object with reportType + reportCode
+    // shift-passon → Create internal-only log entry (treated as report for MVP consistency)
+    //                reportType: 'shift_pass_on', visibility: 'internal_only'
+    // ============================================================================
+    
     // Set the report type - the useEffect hook will automatically regenerate the ID
     setCreateReportType(type);
     
@@ -806,14 +912,14 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
 
   const handleCreateReport = (reportData: any) => {
     // ============================================================================
-    // 1. TRUST THE ID PASSED FROM THE MODAL
+    // 1. EXTRACT REPORT CODE (Canonical Identity)
     // ============================================================================
-    // The modal (child) already has the correct #DIS-xxxx ID. We just need to grab it.
-    const finalCaseId = reportData.caseId || reportData.id;
+    // The modal provides either caseId or id. We'll use it as reportCode.
+    const reportCode = (reportData.caseId || reportData.id || '').replace(/^#/, '');
 
-    if (!finalCaseId) {
-      toast.error('Error: No Case ID provided. Please try again.');
-      console.error('CRITICAL: Missing Case ID from modal submission', reportData);
+    if (!reportCode) {
+      toast.error('Error: No Report Code provided. Please try again.');
+      console.error('CRITICAL: Missing Report Code from modal submission', reportData);
       return;
     }
 
@@ -826,21 +932,34 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     }
 
     // ============================================================================
-    // 3. DETERMINE REPORT TYPE
+    // 3. DETERMINE REPORT TYPE (both legacy and normalized)
     // ============================================================================
-    let type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary' = 'DAR';
+    // ROUTING RULES:
+    // - incident/dar/maintenance → Standard report types for client delivery
+    // - disciplinary → internal_only, goes to Internal/HR storage only
+    // - shift_pass_on → internal_only, auto-approved, stored in Internal Ops
+    // ============================================================================
+    let type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary' | 'Shift Pass-On' = 'DAR';
+    let reportType: ReportType = 'other';
+    let autoApprove = false; // Shift Pass-On logs are auto-approved
     const reportTypeStr = createReportType.toLowerCase();
     
     if (reportTypeStr.includes('disciplinary')) {
       type = 'Disciplinary';
+      reportType = 'disciplinary'; // internal_only
     } else if (reportTypeStr.includes('incident')) {
       type = 'Incident';
+      reportType = 'incident';
     } else if (reportTypeStr.includes('maintenance')) {
       type = 'Maintenance';
+      reportType = 'maintenance';
     } else if (reportTypeStr.includes('dar')) {
       type = 'DAR';
+      reportType = 'dar';
     } else if (reportTypeStr.includes('shift') || reportTypeStr.includes('passon')) {
-      type = 'Incident'; // Shift Pass-On is categorized as Incident
+      type = 'Shift Pass-On'; // Categorize as Shift Pass-On for display purposes
+      reportType = 'shift_pass_on'; // internal_only
+      autoApprove = true; // Shift Pass-On logs don't require supervisor approval
     }
     
     // ============================================================================
@@ -856,24 +975,30 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     // ============================================================================
     // 5. SAVE REPORT TO STATE (using global addReport function)
     // ============================================================================
-    addReport({
-      caseId: finalCaseId,  // <--- DIRECT ASSIGNMENT. NO LOGIC HERE.
+    const newReport = {
+      reportCode,  // CANONICAL: Immutable report identity
+      caseId: `#${reportCode}`,  // Legacy field for backward compatibility
       type,
+      reportType,  // Normalized field for business logic
       priority: reportData.priority || 'normal',
       guardName: currentUser.name,
       site: reportData.site,
       content: reportData.content,
-      status: 'pending',
+      status: autoApprove ? ('approved' as const) : ('pending' as const), // Auto-approve Shift Pass-On logs
       location: reportData.location,
       attachments: reportData.attachments || [],
       date: formattedDate,
       time: reportData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       incidentType: reportData.incidentType,
       urgency: reportData.urgency,
-      policeCalled: reportData.policeCalled,
+      // ============================================================================
+      // CRITICAL FIX: Use canonical field names for police response
+      // ============================================================================
+      police_called: reportData.police_called, // boolean - canonical field name
+      pd_case_number: reportData.pd_case_number, // string - canonical field name
+      // ============================================================================
       narrativeOnly: reportData.narrativeOnly,
       actionTaken: reportData.actionTaken,
-      pdCaseNumber: reportData.pdCaseNumber,
       // DAR-specific fields
       shiftStart: reportData.shiftStart,
       shiftEnd: reportData.shiftEnd,
@@ -887,21 +1012,387 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       employeeName: reportData.employeeName || 'N/A',
       violationType: reportData.violationType || 'N/A',
       disciplineLevel: reportData.disciplineLevel || 'N/A',
-      correctiveAction: reportData.correctiveAction || 'N/A'
-    });
+      correctiveAction: reportData.correctiveAction || 'N/A',
+      // Shift Pass-On specific fields
+      shift: reportData.shift
+    };
+    
+    addReport(newReport);
     
     // ============================================================================
-    // 6. CLOSE MODAL & SHOW SUCCESS NOTIFICATION
+    // 6. AUTO-APPROVE & ADD TO VAULT IF SHIFT PASS-ON
+    // ============================================================================
+    if (autoApprove) {
+      // Add to Vault immediately since Shift Pass-On logs are auto-approved
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+      
+      addVaultDocument({
+        name: `${reportCode} - Shift Pass-On Log.pdf`, // Standardized format
+        category: 'Internal Ops',
+        uploadedBy: currentUser.name,
+        date: currentDate,
+        size: '0.3 MB',
+        status: 'Active',
+        reportReferenceId: reportCode
+      });
+    }
+    
+    // ============================================================================
+    // 7. CLOSE MODAL & SHOW SUCCESS NOTIFICATION
     // ============================================================================
     setIsCreateReportModalOpen(false);
     
     const reportTypeName = type === 'Incident' ? 'Incident Report' 
+      : type === 'DAR' && reportType === 'shift_pass_on' ? 'Shift Pass-On Log'
       : type === 'DAR' ? 'Daily Activity Report' 
       : type === 'Maintenance' ? 'Maintenance Request' 
       : type === 'Disciplinary' ? 'Disciplinary Action' 
       : 'Report';
     
-    toast.success(`✓ ${reportTypeName} ${finalCaseId} created successfully.`);
+    if (autoApprove) {
+      toast.success(`✓ ${reportTypeName} #${reportCode} created and filed to Internal Vault.`);
+    } else {
+      toast.success(`✓ ${reportTypeName} #${reportCode} created successfully.`);
+    }
+  };
+
+  // ============================================================================
+  // DRAFTS HANDLERS
+  // ============================================================================
+  
+  const handleSaveAsDraft = (reportData: any) => {
+    // Check if we're updating an existing draft
+    const existingDraft = editingReport && editingReport.status === 'draft' ? editingReport : null;
+    
+    // Use temporary DRAFT-XXX code for new drafts, keep existing code for updates
+    let reportCode: string;
+    if (existingDraft) {
+      reportCode = existingDraft.reportCode;
+    } else {
+      const draftSequence = getDraftCounter();
+      reportCode = `DRAFT-${String(draftSequence).padStart(3, '0')}`;
+    }
+    
+    // Determine report type
+    let type: 'DAR' | 'Incident' | 'Maintenance' | 'Disciplinary' | 'Shift Pass-On' = 'DAR';
+    let reportType: ReportType = 'other';
+    const reportTypeStr = createReportType.toLowerCase();
+    
+    if (reportTypeStr.includes('disciplinary')) {
+      type = 'Disciplinary';
+      reportType = 'disciplinary';
+    } else if (reportTypeStr.includes('incident')) {
+      type = 'Incident';
+      reportType = 'incident';
+    } else if (reportTypeStr.includes('maintenance')) {
+      type = 'Maintenance';
+      reportType = 'maintenance';
+    } else if (reportTypeStr.includes('dar')) {
+      type = 'DAR';
+      reportType = 'dar';
+    } else if (reportTypeStr.includes('shift') || reportTypeStr.includes('passon')) {
+      type = 'Shift Pass-On';
+      reportType = 'shift_pass_on';
+    }
+    
+    // Format date
+    let formattedDate = reportData.date;
+    if (reportData.date && !reportData.date.includes(',')) {
+      const dateObj = new Date(reportData.date);
+      formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    }
+    
+    if (existingDraft) {
+      // Update existing draft - preserve date/time fields in correct format
+      updateReport(existingDraft.id, {
+        ...reportData,
+        type,
+        reportType,
+        priority: reportData.priority || 'normal',
+        guardName: currentUser.name,
+        site: reportData.site || reportData.location || 'Unknown Location',
+        content: reportData.content,
+        status: 'draft',
+        date: formattedDate, // Display date for table
+        time: reportData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        // Store actual field values for form rehydration
+        incidentDate: reportData.date, // YYYY-MM-DD format from form
+        incidentType: reportData.incidentType,
+        urgency: reportData.urgency,
+        policeCalled: reportData.policeCalled,
+        actionTaken: reportData.actionTaken,
+        pdCaseNumber: reportData.pdCaseNumber,
+        // DAR fields
+        shiftStart: reportData.shiftStart,
+        shiftEnd: reportData.shiftEnd,
+        shift: reportData.shift,
+        reliefGuard: reportData.reliefGuard,
+        equipmentStatus: reportData.equipmentStatus,
+        // Maintenance fields
+        maintenanceCategory: reportData.maintenanceCategory,
+        specificArea: reportData.specificArea,
+        assetId: reportData.assetId,
+        maintenanceDate: reportData.maintenanceDate,
+        maintenanceTime: reportData.maintenanceTime,
+        // Disciplinary fields
+        employeeName: reportData.employeeName,
+        violationType: reportData.violationType,
+        disciplineLevel: reportData.disciplineLevel,
+        correctiveAction: reportData.correctiveAction,
+        disciplinaryDate: reportData.disciplinaryDate,
+        disciplinaryTime: reportData.disciplinaryTime
+      });
+      toast.success('✓ Draft updated successfully.');
+    } else {
+      // Create new draft with temporary DRAFT-XXX code
+      const newDraft = {
+        reportCode,
+        caseId: `#${reportCode}`,
+        type,
+        reportType,
+        priority: reportData.priority || 'normal',
+        guardName: currentUser.name,
+        site: reportData.site || reportData.location || 'Unknown Location',
+        content: reportData.content,
+        status: 'draft' as const,
+        createdBy: currentUser.name,  // Track who created this draft
+        location: reportData.location,
+        attachments: reportData.attachments || [],
+        date: formattedDate, // Display date for table (e.g., "Jan 8, 2026")
+        time: reportData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        
+        // ============================================================================
+        // CRITICAL: Store date/time in correct format and field names for rehydration
+        // ============================================================================
+        
+        // Incident Report fields
+        incidentDate: reportData.date, // YYYY-MM-DD format from the form
+        incidentType: reportData.incidentType,
+        urgency: reportData.urgency,
+        policeCalled: reportData.policeCalled,
+        narrativeOnly: reportData.narrativeOnly,
+        actionTaken: reportData.actionTaken,
+        pdCaseNumber: reportData.pdCaseNumber,
+        
+        // DAR-specific fields
+        shiftStart: reportData.shiftStart, // HH:mm format
+        shiftEnd: reportData.shiftEnd, // HH:mm format
+        shift: reportData.shift, // Shift type
+        reliefGuard: reportData.reliefGuard,
+        equipmentStatus: reportData.equipmentStatus,
+        
+        // Maintenance-specific fields
+        maintenanceCategory: reportData.maintenanceCategory,
+        specificArea: reportData.specificArea,
+        assetId: reportData.assetId,
+        maintenanceDate: reportData.maintenanceDate, // YYYY-MM-DD format
+        maintenanceTime: reportData.maintenanceTime, // HH:mm format
+        
+        // Disciplinary-specific fields
+        employeeName: reportData.employeeName,
+        violationType: reportData.violationType,
+        disciplineLevel: reportData.disciplineLevel,
+        correctiveAction: reportData.correctiveAction,
+        disciplinaryDate: reportData.disciplinaryDate, // YYYY-MM-DD format
+        disciplinaryTime: reportData.disciplinaryTime // HH:mm format
+      };
+      
+      addReport(newDraft);
+      toast.success('✓ Draft saved successfully.');
+    }
+    
+    setIsCreateReportModalOpen(false);
+    setEditingReport(null);
+  };
+
+  const handleContinueEditingDraft = (draft: Report) => {
+    // Open CreateReportModal with the draft data pre-filled
+    setEditingReport(draft);
+    const draftType = draft.reportType === 'incident' ? 'incident'
+      : draft.reportType === 'dar' ? 'dar'
+      : draft.reportType === 'maintenance' ? 'maintenance'
+      : draft.reportType === 'disciplinary' ? 'disciplinary'
+      : draft.reportType === 'shift_pass_on' ? 'shift-passon'
+      : 'dar';
+    setCreateReportType(draftType);
+    setIsCreateReportModalOpen(true);
+  };
+
+  const handleDeleteDraft = (draftId: number) => {
+    const confirmed = window.confirm('Are you sure you want to delete this draft? This action cannot be undone.');
+    if (confirmed) {
+      const draft = reports.find(r => r.id === draftId);
+      if (draft) {
+        // Use the proper deleteReport function to permanently remove the draft
+        deleteReport(draftId);
+        toast.success('✓ Draft deleted successfully.');
+      }
+    }
+  };
+
+  const handleSubmitDraft = (draftId: number, reportData: any) => {
+    const draft = reports.find(r => r.id === draftId);
+    if (!draft) return;
+    
+    // Generate a permanent report code to replace the temporary DRAFT-XXX code
+    let permanentReportCode: string;
+    if (draft.reportCode.startsWith('DRAFT-')) {
+      // Get a permanent code based on report type
+      const reportTypeForCode = draft.type === 'Incident' ? 'Incident' 
+        : draft.type === 'DAR' ? 'DAR' 
+        : draft.type === 'Maintenance' ? 'Maintenance' 
+        : draft.type;
+      permanentReportCode = getPreviewId(reportTypeForCode as any);
+    } else {
+      // Already has a permanent code (shouldn't happen, but defensive)
+      permanentReportCode = draft.reportCode;
+    }
+    
+    // When submitting a draft, assign permanent code and change status to 'pending'
+    // Preserve revisionOfReportId if this is a revision
+    updateReport(draftId, {
+      ...reportData,
+      reportCode: permanentReportCode,
+      caseId: `#${permanentReportCode}`,
+      status: 'pending' as const,
+      revisionOfReportId: draft.revisionOfReportId // Preserve revision reference
+    });
+    
+    setIsCreateReportModalOpen(false);
+    setEditingReport(null);
+    
+    const reportTypeName = draft.type === 'Incident' ? 'Incident Report' 
+      : draft.type === 'DAR' ? 'Daily Activity Report' 
+      : draft.type === 'Maintenance' ? 'Maintenance Request' 
+      : draft.type === 'Disciplinary' ? 'Disciplinary Action' 
+      : 'Report';
+    
+    // Show different message if this is a revision
+    if (draft.revisionOfReportId) {
+      const originalReport = reports.find(r => r.id === draft.revisionOfReportId);
+      const originalCode = originalReport?.reportCode || `Report #${draft.revisionOfReportId}`;
+      toast.success(`✓ Revised ${reportTypeName} #${permanentReportCode} submitted for review (revision of ${originalCode}).`);
+    } else {
+      toast.success(`✓ ${reportTypeName} #${permanentReportCode} submitted for review.`);
+    }
+  };
+
+  // ============================================================================
+  // HANDLERS: Resubmission Actions (Save Draft / Resubmit for Review)
+  // ============================================================================
+  /**
+   * Save as Draft - Creates a new draft report from rejected report data
+   * Status: 'draft', stays in Drafts tab
+   */
+  const handleResubmissionSaveDraft = async (reportData: any) => {
+    const originalRejectedReport = editingReport;
+    if (!originalRejectedReport || !originalRejectedReport.revisionOfReportId) {
+      toast.error('Error: Original rejected report not found');
+      return;
+    }
+
+    try {
+      // Create a new draft report with all data from the form
+      const draftCode = `DRAFT-${getDraftCounter()}`;
+      const newDraft: Partial<Report> = {
+        ...reportData,
+        id: undefined, // Will be assigned by backend
+        status: 'draft' as const,
+        reportCode: draftCode,
+        caseId: draftCode,
+        revisionOfReportId: originalRejectedReport.revisionOfReportId,
+        createdBy: currentUser.name,
+        timestamp: new Date().toISOString(),
+        // Clear rejection metadata
+        rejectionNote: undefined,
+        rejectedBy: undefined,
+        rejectedAt: undefined,
+        rejectedByRole: undefined,
+        // Clear approval metadata
+        approvedBy: undefined,
+        approvedAt: undefined,
+        approvedByRole: undefined,
+      };
+
+      await addReport(newDraft as Report);
+      
+      const originalReport = reports.find(r => r.id === originalRejectedReport.revisionOfReportId);
+      const originalCode = originalReport?.reportCode || 'Rejected Report';
+      toast.success(`✓ Draft saved (revision of ${originalCode}). Continue editing in Drafts tab.`);
+      
+      setIsCreateReportModalOpen(false);
+      setEditingReport(null);
+      setStatusTab('drafts'); // Navigate to Drafts tab
+    } catch (error) {
+      console.error('Error saving resubmission draft:', error);
+      toast.error('Failed to save draft');
+    }
+  };
+
+  /**
+   * Resubmit for Review - Creates a new pending report from rejected report data
+   * Status: 'pending', goes directly to review queue
+   */
+  const handleResubmitForReview = async (reportData: any) => {
+    const originalRejectedReport = editingReport;
+    if (!originalRejectedReport || !originalRejectedReport.revisionOfReportId) {
+      toast.error('Error: Original rejected report not found');
+      return;
+    }
+
+    try {
+      // Generate permanent report code
+      const reportTypeForCode = originalRejectedReport.type === 'Incident' ? 'Incident' 
+        : originalRejectedReport.type === 'DAR' ? 'DAR' 
+        : originalRejectedReport.type === 'Maintenance' ? 'Maintenance' 
+        : originalRejectedReport.type === 'Disciplinary' ? 'Disciplinary'
+        : originalRejectedReport.type;
+      const permanentReportCode = getPreviewId(reportTypeForCode as any);
+      
+      // Create a new pending report
+      const newReport: Partial<Report> = {
+        ...reportData,
+        id: undefined, // Will be assigned by backend
+        status: 'pending' as const,
+        reportCode: permanentReportCode,
+        caseId: `#${permanentReportCode}`,
+        revisionOfReportId: originalRejectedReport.revisionOfReportId,
+        createdBy: currentUser.name,
+        timestamp: new Date().toISOString(),
+        // Clear rejection metadata
+        rejectionNote: undefined,
+        rejectedBy: undefined,
+        rejectedAt: undefined,
+        rejectedByRole: undefined,
+        // Clear approval metadata
+        approvedBy: undefined,
+        approvedAt: undefined,
+        approvedByRole: undefined,
+      };
+
+      await addReport(newReport as Report);
+      
+      const originalReport = reports.find(r => r.id === originalRejectedReport.revisionOfReportId);
+      const originalCode = originalReport?.reportCode || 'Rejected Report';
+      const reportTypeName = originalRejectedReport.type === 'Incident' ? 'Incident Report' 
+        : originalRejectedReport.type === 'DAR' ? 'Daily Activity Report' 
+        : originalRejectedReport.type === 'Maintenance' ? 'Maintenance Request' 
+        : originalRejectedReport.type === 'Disciplinary' ? 'Disciplinary Action' 
+        : 'Report';
+      
+      toast.success(`✓ Revised ${reportTypeName} #${permanentReportCode} submitted for review (revision of ${originalCode}).`);
+      
+      setIsCreateReportModalOpen(false);
+      setEditingReport(null);
+      setStatusTab('pending'); // Navigate to Pending tab
+    } catch (error) {
+      console.error('Error resubmitting report:', error);
+      toast.error('Failed to resubmit report');
+    }
   };
 
   // Handler for opening Maintenance Request modal (programmed card)
@@ -950,6 +1441,7 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
     addReport({
       caseId: data.reportId,
       type: 'DAR', // Maintenance is categorized as DAR
+      reportType: 'dar', // Normalized field
       priority: data.priority,
       guardName: currentUser.name,
       site: data.site,
@@ -989,6 +1481,7 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
                   { value: 'yesterday', label: 'Yesterday' },
                   { value: 'last-7-days', label: 'Last 7 Days' },
                   { value: 'last-30-days', label: 'Last 30 Days' },
+                  { value: 'all', label: 'All Reports' },
                   { value: 'custom', label: 'Custom Range' }
                 ]}
               />
@@ -1031,11 +1524,52 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       {/* Create Report Modal */}
       <CreateReportModal
         isOpen={isCreateReportModalOpen}
-        onClose={() => setIsCreateReportModalOpen(false)}
+        onClose={() => {
+          setIsCreateReportModalOpen(false);
+          setEditingReport(null);
+        }}
         reportType={createReportType}
         officerName={currentUser.name}
         caseId={generatedCaseId}
-        onSubmit={handleCreateReport}
+        initialData={
+          editingReport?.status === 'draft' 
+            ? editingReport 
+            : (editingReport as any)?.isResubmission 
+              ? editingReport 
+              : undefined
+        }
+        isResubmission={(editingReport as any)?.isResubmission || false}
+        rejectionNote={(editingReport as any)?.isResubmission ? editingReport?.rejectionNote : undefined}
+        onSubmit={(data) => {
+          if ((editingReport as any)?.isResubmission) {
+            // Resubmitting a rejected report - should not reach here (using separate handlers)
+            console.error('onSubmit called for resubmission - this should not happen');
+          } else if (editingReport?.status === 'draft') {
+            // Submitting a draft - convert to pending
+            handleSubmitDraft(editingReport.id, data);
+          } else {
+            // Creating a new report
+            handleCreateReport(data);
+          }
+        }}
+        onSaveAsDraft={
+          (editingReport as any)?.isResubmission 
+            ? handleResubmissionSaveDraft 
+            : handleSaveAsDraft
+        }
+        onResubmitForReview={
+          (editingReport as any)?.isResubmission 
+            ? handleResubmitForReview 
+            : undefined
+        }
+      />
+      
+      {/* Extended Filters */}
+      <ExtendedFilters
+        filters={extendedFilters}
+        onFiltersChange={setExtendedFilters}
+        sites={uniqueSites}
+        guards={uniqueGuards}
       />
       
       <div className="reports-layout">
@@ -1045,6 +1579,23 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
             <div className="review-queue-title">
               <h2>Incoming Feed</h2>
             </div>
+
+            {/* Active Filter Chip */}
+            {selectedSummaryType && (
+              <div className="active-filter-chip">
+                <span className="filter-chip-text">
+                  <Filter size={14} />
+                  Type: {pendingCountsByType.find(c => c.type === selectedSummaryType)?.label || selectedSummaryType}
+                </span>
+                <button 
+                  className="filter-chip-close"
+                  onClick={handleClearFilter}
+                  title="Clear filter"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             {/* Status Tabs */}
             <div className="status-tabs">
@@ -1065,6 +1616,12 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
                 onClick={() => setStatusTab('rejected')}
               >
                 Rejected ({rejectedCount})
+              </button>
+              <button 
+                className={`status-tab ${statusTab === 'drafts' ? 'active' : ''}`}
+                onClick={() => setStatusTab('drafts')}
+              >
+                Drafts ({draftsCount})
               </button>
             </div>
             
@@ -1087,36 +1644,127 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
                   <Check size={16} />
                   <span>Batch Approve ({selectedReportIds.size})</span>
                 </button>
+                <button 
+                  className="batch-reject-btn"
+                  onClick={() => setIsBatchRejectModalOpen(true)}
+                  disabled={selectedReportIds.size === 0}
+                >
+                  <AlertTriangle size={16} />
+                  <span>Batch Reject ({selectedReportIds.size})</span>
+                </button>
               </div>
             )}
           </div>
 
           <div className="report-cards-container">
-            {displayedReports.map((report) => (
-              <ReportCard
-                key={report.id}
-                id={report.id}
-                referenceId={report.caseId || report.referenceId}
-                type={report.type}
-                priority={report.priority}
-                guardName={report.guardName}
-                site={report.site}
-                timestamp={report.timestamp}
-                content={report.content}
-                status={report.status}
-                rejectionNote={report.rejectionNote}
-                rejectedBy={report.rejectedBy}
-                rejectedAt={report.rejectedAt}
-                approvedBy={report.approvedBy}
-                approvedAt={report.approvedAt}
-                isSelected={selectedReportIds.has(report.id)}
-                onToggleSelect={handleToggleSelect}
-                onEdit={() => handleEdit(report)}
-                onReject={handleReject}
-                onApprove={handleApprove}
-                onViewDetails={() => handleViewDetails(report.id)}
-              />
-            ))}
+            {statusTab === 'drafts' ? (
+              // Draft-specific UI
+              displayedReports.map((report) => (
+                <div key={report.id} className="report-card draft-card">
+                  <div className="report-card-header">
+                    <div className="report-type-badge" style={{
+                      background: report.type === 'Incident' ? 'rgba(239, 68, 68, 0.1)' :
+                                 report.type === 'DAR' ? 'rgba(59, 130, 246, 0.1)' :
+                                 report.type === 'Maintenance' ? 'rgba(245, 158, 11, 0.1)' :
+                                 report.type === 'Disciplinary' ? 'rgba(168, 85, 247, 0.1)' :
+                                 'rgba(107, 114, 128, 0.1)',
+                      color: report.type === 'Incident' ? '#EF4444' :
+                             report.type === 'DAR' ? '#3B82F6' :
+                             report.type === 'Maintenance' ? '#F59E0B' :
+                             report.type === 'Disciplinary' ? '#A855F7' :
+                             '#6B7280'
+                    }}>
+                      {report.type}
+                    </div>
+                    <span className="draft-label" style={{ 
+                      marginLeft: 'auto',
+                      padding: '4px 8px',
+                      background: 'rgba(107, 114, 128, 0.2)',
+                      color: '#9CA3AF',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      borderRadius: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Draft
+                    </span>
+                  </div>
+                  <div className="draft-info" style={{ marginTop: '12px' }}>
+                    <p style={{ color: '#E5E7EB', fontSize: '14px', marginBottom: '8px' }}>
+                      <strong>{report.site || 'No site specified'}</strong>
+                      {report.location && ` • ${report.location}`}
+                    </p>
+                    <p style={{ color: '#9CA3AF', fontSize: '13px', marginBottom: '4px' }}>
+                      Created by: {report.guardName}
+                    </p>
+                    <p 
+                      style={{ color: '#6B7280', fontSize: '12px', cursor: 'help' }}
+                      title={`UTC: ${getUTCTimestamp(report.timestamp)}`}
+                    >
+                      Last updated: {formatTimestamp(report.timestamp)}
+                    </p>
+                  </div>
+                  <div className="draft-actions" style={{ 
+                    display: 'flex', 
+                    gap: '8px', 
+                    marginTop: '16px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                  }}>
+                    <button
+                      className="button-primary"
+                      onClick={() => handleContinueEditingDraft(report)}
+                      style={{ flex: 1 }}
+                    >
+                      Continue Editing
+                    </button>
+                    <button
+                      className="button-secondary"
+                      onClick={() => handleDeleteDraft(report.id)}
+                      style={{ 
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#EF4444',
+                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                      }}
+                    >
+                      Delete Draft
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              // Regular report cards for other tabs
+              displayedReports.map((report) => (
+                <ReportCard
+                  key={report.id}
+                  id={report.id}
+                  referenceId={report.caseId || report.referenceId}
+                  reportCode={report.reportCode}  // CANONICAL: Pass immutable report code
+                  type={report.type}
+                  priority={report.priority}
+                  guardName={report.guardName}
+                  site={report.site}
+                  timestamp={report.timestamp}
+                  content={report.content}
+                  status={report.status}
+                  rejectionNote={report.rejectionNote}
+                  rejectedBy={report.rejectedBy}
+                  rejectedAt={report.rejectedAt}
+                  approvedBy={report.approvedBy}
+                  approvedAt={report.approvedAt}
+                  isSelected={selectedReportIds.has(report.id)}
+                  onToggleSelect={handleToggleSelect}
+                  onEdit={() => handleEdit(report)}
+                  onReject={handleReject}
+                  onApprove={handleApprove}
+                  onViewDetails={() => handleViewDetails(report.id)}
+                  onEditAndResubmit={() => handleEditAndResubmit(report)}
+                  createdBy={report.createdBy}
+                  currentUserName={currentUser.name}
+                />
+              ))
+            )}
 
             {displayedReports.length === 0 && (
               <div className="empty-queue">
@@ -1128,104 +1776,12 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
           </div>
         </div>
 
-        {/* Right Column: Client Outbox */}
-        <div className="client-packages">
-          <div className="packages-header">
-            <h2>Client Outbox</h2>
-          </div>
-
-          <div className="package-cards-container">
-            {outboxPackages.map((pkg) => {
-              // Get current date for subtitle
-              const currentDate = new Date().toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                year: 'numeric' 
-              });
-              
-              // Calculate report type counts
-              const incidentCount = pkg.reports.filter(r => r.type.includes('Incident')).length;
-              const darCount = pkg.reports.filter(r => r.type.includes('Daily Activity')).length;
-              const maintenanceCount = pkg.reports.filter(r => r.type.includes('Maintenance')).length;
-              const totalCount = pkg.reports.length;
-              
-              // Build summary text
-              const summaryParts = [];
-              if (incidentCount > 0) summaryParts.push(`${incidentCount} Incident${incidentCount > 1 ? 's' : ''}`);
-              if (darCount > 0) summaryParts.push(`${darCount} Daily Log${darCount > 1 ? 's' : ''}`);
-              if (maintenanceCount > 0) summaryParts.push(`${maintenanceCount} Maintenance`);
-              const summaryText = summaryParts.join(' • ');
-              
-              return (
-                <div key={pkg.id} className="package-card">
-                  <div className="package-card-with-preview">
-                    <div className="pdf-preview-thumbnail">
-                      <FileText size={20} className="pdf-icon" />
-                      <div className="pdf-lines">
-                        <div className="pdf-line"></div>
-                        <div className="pdf-line"></div>
-                        <div className="pdf-line"></div>
-                        <div className="pdf-line short"></div>
-                      </div>
-                    </div>
-
-                    <div className="package-content">
-                      <div className="package-header">
-                        <div>
-                          <h3>{pkg.siteName}</h3>
-                          <p className="package-subtitle">Daily Shift Summary • {currentDate}</p>
-                        </div>
-                      </div>
-
-                      {/* Status Badge */}
-                      <div className="package-status-badge ready-to-send">
-                        <CheckCircle size={14} />
-                        <span>READY TO SEND</span>
-                      </div>
-
-                      {/* Content Summary */}
-                      <div className="package-summary">
-                        <p className="summary-text">{summaryText}</p>
-                        <p className="summary-total">{totalCount} {totalCount === 1 ? 'Report' : 'Reports'} Total</p>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="package-actions">
-                        <button 
-                          className="package-preview-btn"
-                          onClick={() => handleGeneratePDF(pkg)}
-                        >
-                          <Eye size={14} />
-                          <span>Preview PDF</span>
-                        </button>
-
-                        <button 
-                          className={`package-send-btn-primary ${
-                            sentPackageIds.has(pkg.id) ? 'package-send-btn-sent' : ''
-                          }`}
-                          onClick={() => handleSendPackage(pkg)}
-                          disabled={sentPackageIds.has(pkg.id)}
-                        >
-                          {sentPackageIds.has(pkg.id) ? (
-                            <>
-                              <CheckCircle size={16} />
-                              <span>Sent Successfully</span>
-                            </>
-                          ) : (
-                            <>
-                              <Send size={16} />
-                              <span>Send Packet ({totalCount} {totalCount === 1 ? 'Report' : 'Reports'})</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* Right Column: Report Summary Sidebar */}
+        <ReportSummarySidebar
+          pendingCounts={pendingCountsByType}
+          selectedType={selectedSummaryType}
+          onTypeClick={handleSummaryTypeClick}
+        />
       </div>
 
       {/* DatePicker Modal */}
@@ -1244,114 +1800,20 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
           updateReport(reportId, updates);
         }}
         onApprove={(reportId, updates) => {
-          // Hard-coded user identity - self-contained approval logic
-          const currentUser = { name: 'Sarah Chen', role: 'Supervisor' };
+          // ============================================================================
+          // CANONICAL MODAL APPROVAL: Use global approveReport() with updates
+          // ============================================================================
+          const report = reports.find(r => r.id === reportId);
           
-          // Create real-time timestamp
-          const time = new Date().toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            hour12: true
+          // Call canonical approval function with any edits from the modal
+          approveReport(reportId, { 
+            notifyGuard: updates.notifyGuard,
+            updates: updates 
           });
           
-          // Construct complete signature string
-          const signature = `by ${currentUser.role} ${currentUser.name}`;
-          const approvedAt = time;
-          
-          // Find the report being approved to check its reference ID
-          const approvedReport = reports.find(r => r.id === reportId);
-          
-          // Update the report with edits AND set status to approved with signature
-          updateReport(reportId, {
-            ...updates, 
-            status: 'approved' as const,
-            approvedBy: signature,
-            approvedByRole: currentUser.role,
-            approvedAt: approvedAt
-          });
-          
-          // Update state variables and Client Outbox based on approved report
-          if (approvedReport?.referenceId) {
-            const refId = approvedReport.referenceId;
-            
-            // Update specific state variables
-            if (refId === '#DAR-446') {
-              setIs_DAR446_Approved(true);
-            } else if (refId === '#DAR-445') {
-              setIs_DAR445_Approved(true);
-            } else if (refId === '#IR-2024-1156') {
-              setIs_IR2024_1156_Approved(true);
-            }
-            
-            // SyncToVault: File this approved report to the guard's employee history
-            if (approvedReport) {
-              syncReportToGuardVault(approvedReport.guardName, {
-                reportId: approvedReport.referenceId,
-                reportType: approvedReport.type,
-                status: 'approved',
-                approvedBy: signature,
-                approvedAt: approvedAt,
-                site: approvedReport.site,
-                timestamp: approvedReport.timestamp
-              });
-              
-              // Determine the correct Vault category based on report ID prefix or title
-              let vaultCategory = 'Daily Reports'; // Default
-              
-              // IF Title contains 'Incident' OR ID starts with '#IR': Set vaultCategory = 'Incident Reports'
-              if (approvedReport.type === 'Incident' || approvedReport.referenceId.startsWith('#IR')) {
-                vaultCategory = 'Incident Reports';
-              }
-              // IF Title contains 'Daily Activity' OR ID starts with '#DAR': Set vaultCategory = 'Daily Reports'
-              else if (approvedReport.type === 'DAR' || approvedReport.referenceId.startsWith('#DAR')) {
-                vaultCategory = 'Daily Reports';
-              }
-              // Check for maintenance requests
-              else if (approvedReport.referenceId.startsWith('#MAINT')) {
-                vaultCategory = 'Maintenance Reports';
-              }
-              // Check for disciplinary forms
-              else if (approvedReport.referenceId.startsWith('#DISC') || approvedReport.referenceId.startsWith('#WU')) {
-                vaultCategory = 'Internal Reports';
-              }
-              // Check for shift pass-on logs
-              else if (approvedReport.referenceId.startsWith('#PASS')) {
-                vaultCategory = 'Shift Logs';
-              }
-              
-              // Broadcast Global Vault Entry - Set newVaultEntry = true & store latestReportData
-              const reportTypeName = approvedReport.type === 'DAR' ? 'Daily Activity Report' : 'Incident Report';
-              broadcastVaultEntry({
-                name: `${reportTypeName} ${approvedReport.referenceId}`,
-                user: approvedReport.guardName,
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                status: 'Active',
-                reportId: approvedReport.referenceId,
-                reportType: approvedReport.type,
-                site: approvedReport.site,
-                category: vaultCategory // Send the correct category to the Vault
-              });
-              
-              // Generate document metadata based on report type
-              const { fileName, category } = generateDocumentMetadata(approvedReport);
-              
-              // Add document to Vault
-              addVaultDocument({
-                name: fileName,
-                category: category,
-                uploadedBy: approvedReport.guardName,
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                size: '1.8 MB', // Mock size
-                status: 'Active',
-                reportReferenceId: approvedReport.referenceId
-              });
-              
-              // Show toast notification
-              toast.success(`✓ Report Approved & Filed to ${approvedReport.guardName}'s Personnel Record.`);
-            }
+          // Show success toast
+          if (report) {
+            toast.success(`✓ Report Approved & Filed to ${report.guardName}'s Personnel Record.`);
           }
         }}
         onReject={(reportId, updates) => {
@@ -1387,35 +1849,18 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
       {/* Report Details Modal */}
       <ReportDetailsModal
         isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setDetailsReport(null);
+        }}
         report={detailsReport}
+        currentUser={currentUser}
         onPrevious={handlePreviousReport}
         onNext={handleNextReport}
         hasPrevious={hasPreviousReport}
         hasNext={hasNextReport}
-      />
-
-      {/* PDF Preview Modal */}
-      <PDFPreviewModal
-        isOpen={isPDFPreviewModalOpen}
-        onClose={() => setIsPDFPreviewModalOpen(false)}
-        package={selectedPackage}
-        allReports={reports}
-      />
-
-      {/* Email Confirm Modal */}
-      <EmailConfirmModal
-        isOpen={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-        package={emailPackage}
-        sentPackageIds={sentPackageIds}
-        onEmailSend={handleEmailSend}
-        isSending={isSending}
-        onPreviewPDF={() => {
-          // Open PDF preview with the current email package
-          setSelectedPackage(emailPackage);
-          setIsPDFPreviewModalOpen(true);
-        }}
+        onApprove={detailsReport?.status === 'pending' ? () => handleDetailsModalApprove(detailsReport.id) : undefined}
+        onReject={detailsReport?.status === 'pending' ? () => handleDetailsModalReject(detailsReport.id) : undefined}
       />
 
       {/* Enhanced Report Modal */}
@@ -1429,32 +1874,45 @@ export function Reports({ reports, onNavigateToReport, is_IR2024_1156_Approved, 
         />
       )}
 
-      {/* Success Confirmation Modal */}
-      {showSuccessModal && (
-        <div 
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={handleCloseSuccessModal}
-        >
-          <div 
-            className="bg-[#1F2937] border border-gray-700 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-green-900/20 animate-in fade-in zoom-in-95 duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-500/20 mb-6 ring-4 ring-green-500/10">
-              <CheckCircle className="h-12 w-12 text-green-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-3 tracking-tight">Packet Sent!</h3>
-            <p className="text-gray-300 text-[15px] leading-relaxed mb-8">
-              The security report for <span className="text-white font-medium">{sentSiteName}</span> has been emailed to the client and archived.
-            </p>
-            <button 
-              onClick={handleCloseSuccessModal}
-              className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all duration-200 shadow-lg shadow-blue-500/20"
-            >
-              Return to Outbox
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Batch Reject Modal */}
+      <BatchRejectModal
+        isOpen={isBatchRejectModalOpen}
+        onClose={() => setIsBatchRejectModalOpen(false)}
+        selectedCount={selectedReportIds.size}
+        onConfirm={handleBatchReject}
+      />
+
+      {/* Reject Report Modal */}
+      <RejectReportModal
+        isOpen={isRejectModalOpen}
+        onClose={() => {
+          console.log('[Reports] Closing reject modal');
+          setIsRejectModalOpen(false);
+          setRejectingReportId(null);
+          // If we were in review queue mode, close everything
+          if (autoOpenModal === 'review-queue') {
+            setDetailsReport(null);
+          }
+        }}
+        onConfirm={autoOpenModal === 'review-queue' ? handleConfirmRejectWithQueue : handleConfirmReject}
+        reportId={rejectingReportId ? reports.find(r => r.id === rejectingReportId)?.caseId : undefined}
+      />
+
+      {/* Request Changes Modal - COMPLIANCE: For pending report review */}
+      <RequestChangesModal
+        isOpen={isRequestChangesModalOpen}
+        onClose={() => {
+          console.log('[Reports] Closing request changes modal');
+          setIsRequestChangesModalOpen(false);
+          setRejectingReportId(null);
+          // If we were in review queue mode, close everything
+          if (autoOpenModal === 'review-queue') {
+            setDetailsReport(null);
+          }
+        }}
+        onConfirm={handleConfirmRequestChanges}
+        reportId={rejectingReportId ? reports.find(r => r.id === rejectingReportId)?.reportCode : undefined}
+      />
     </div>
   );
 }

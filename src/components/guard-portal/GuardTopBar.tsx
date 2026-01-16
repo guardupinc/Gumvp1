@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Search, Bell, ChevronDown, User, LogOut } from 'lucide-react';
+import { Menu, Search, Bell, ChevronDown, User, LogOut, ChevronLeft } from 'lucide-react';
 import type { GuardPageId } from './GuardPortal';
 
 const pageTitles: Record<GuardPageId, string> = {
@@ -18,9 +18,10 @@ interface GuardTopBarProps {
   onToggleSidebar: () => void;
   userName: string;
   userRole: string;
+  sidebarCollapsed?: boolean;
 }
 
-export function GuardTopBar({ currentPage, onToggleSidebar, userName, userRole }: GuardTopBarProps) {
+export function GuardTopBar({ currentPage, onToggleSidebar, userName, userRole, sidebarCollapsed }: GuardTopBarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);

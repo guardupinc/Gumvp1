@@ -6,11 +6,11 @@ import { MyGuardCard } from './pages/MyGuardCard';
 import { MySchedule } from './pages/MySchedule';
 import { PatrolOps } from './pages/PatrolOps';
 import { MyReports } from './pages/MyReports';
-import { AppStateProvider } from '../../contexts/AppStateContext';
+import { useAppState } from '../../contexts/AppStateContext';
 
-export type GuardPageId = 
-  | 'dashboard' 
-  | 'my-schedule' 
+export type GuardPageId =
+  | 'dashboard'
+  | 'my-schedule'
   | 'patrol-ops'
   | 'my-reports'
   | 'my-metrics'
@@ -20,12 +20,37 @@ export type GuardPageId =
 
 interface GuardPortalProps {
   onLogout: () => void;
+  guardId: number;
 }
 
-function GuardPortalContent({ onLogout }: GuardPortalProps) {
+function GuardPortalContent({ onLogout, guardId }: GuardPortalProps) {
+  const { setCurrentUser, appState, currentUser } = useAppState();
   const [currentPage, setCurrentPage] = useState<GuardPageId>('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  
+  // Persist sidebar collapsed state in localStorage
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('guardUpSidebarCollapsed');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Save to localStorage when sidebar state changes
+  useEffect(() => {
+    localStorage.setItem('guardUpSidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+  
+  // Set current user based on guardId when component mounts
+  useEffect(() => {
+    const guard = appState.roster.find(g => g.id === guardId);
+    if (guard) {
+      setCurrentUser({
+        id: guard.id,
+        name: guard.name,
+        role: 'Guard',
+        email: guard.email
+      });
+    }
+  }, [guardId, setCurrentUser, appState.roster]);
 
   // Handle Escape key to close/collapse sidebar
   useEffect(() => {
@@ -42,6 +67,22 @@ function GuardPortalContent({ onLogout }: GuardPortalProps) {
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
+  
+  // Don't render until currentUser is set (AFTER all hooks)
+  if (!currentUser || currentUser.id !== guardId) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh',
+        background: '#0B1220',
+        color: '#8899AA'
+      }}>
+        Loading...
+      </div>
+    );
+  }
 
   const handleToggleSidebar = () => {
     if (window.innerWidth <= 768) {
@@ -97,8 +138,9 @@ function GuardPortalContent({ onLogout }: GuardPortalProps) {
         <GuardTopBar
           currentPage={currentPage}
           onToggleSidebar={handleToggleSidebar}
-          userName="John Smith"
+          userName={currentUser.name}
           userRole="Guard"
+          sidebarCollapsed={sidebarCollapsed}
         />
         <main className="main-content">
           {renderPage()}
@@ -108,10 +150,6 @@ function GuardPortalContent({ onLogout }: GuardPortalProps) {
   );
 }
 
-export function GuardPortal({ onLogout }: GuardPortalProps) {
-  return (
-    <AppStateProvider>
-      <GuardPortalContent onLogout={onLogout} />
-    </AppStateProvider>
-  );
+export function GuardPortal({ onLogout, guardId }: GuardPortalProps) {
+  return <GuardPortalContent onLogout={onLogout} guardId={guardId} />;
 }

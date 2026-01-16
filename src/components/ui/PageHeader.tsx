@@ -7,6 +7,7 @@ interface PageHeaderProps {
     label: string;
     onClick: () => void;
     icon?: React.ReactNode;
+    dropdownContent?: React.ReactNode;  // New: optional dropdown content
   };
   secondaryAction?: {
     label: string;
@@ -29,10 +30,13 @@ export function PageHeader({ title, description, primaryAction, secondaryAction 
             </button>
           )}
           {primaryAction && (
-            <button className="button-primary" onClick={primaryAction.onClick}>
-              {primaryAction.icon}
-              {primaryAction.label}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="button-primary" onClick={primaryAction.onClick}>
+                {primaryAction.icon}
+                {primaryAction.label}
+              </button>
+              {primaryAction.dropdownContent}
+            </div>
           )}
         </div>
       )}

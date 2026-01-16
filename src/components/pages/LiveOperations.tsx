@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Users, AlertTriangle, Shield, Send, FileText, Eye } from 'lucide-react';
 import { BroadcastAlertModal } from '../modals/BroadcastAlertModal';
 import { SiteLogsDrawer } from '../drawers/SiteLogsDrawer';
-import { generateTodayOperations } from '../widgets/DailyOperationsTimeline';
 import { toast } from 'sonner@2.0.3';
 import { useAppState } from '../../contexts/AppStateContext';
+import { getTodaysScheduledShifts } from '../../utils/activeShifts';
 import '../../styles/drawer.css';
 
 interface SiteCard {
@@ -29,124 +29,6 @@ interface ActivityEvent {
   timestamp: string;
   severity: 'success' | 'warning' | 'critical' | 'broadcast';
 }
-
-const siteData: SiteCard[] = [
-  {
-    id: 2,
-    name: 'Building B',
-    status: 'critical',
-    statusText: 'CRITICAL - SOS Triggered',
-    activeGuards: 5,
-    guards: [
-      { id: 2, name: 'Maria Garcia', initials: 'MG' },
-      { id: 5, name: 'Robert Brown', initials: 'RB' },
-      { id: 17, name: 'Marcus Chen', initials: 'MC' },
-      { id: 18, name: 'Diana Lopez', initials: 'DL' },
-      { id: 19, name: 'Patrick O\'Neil', initials: 'PO' }
-    ],
-    shiftProgress: 20,
-    shiftStatusText: 'Shift paused - Incident',
-    taskMetrics: {
-      patrolsCompleted: 3,
-      patrolsTotal: 4,
-      reportsDrafted: 1
-    }
-  },
-  {
-    id: 1,
-    name: 'Building A',
-    status: 'all-clear',
-    statusText: 'All Clear',
-    activeGuards: 3,
-    guards: [
-      { id: 1, name: 'John Smith', initials: 'JS' },
-      { id: 4, name: 'Sarah Chen', initials: 'SC' },
-      { id: 7, name: 'Alex Johnson', initials: 'AJ' }
-    ],
-    shiftProgress: 85,
-    shiftStatusText: 'Shift ending in 1h',
-    taskMetrics: {
-      patrolsCompleted: 3,
-      patrolsTotal: 4,
-      reportsDrafted: 1
-    }
-  },
-  {
-    id: 3,
-    name: 'Parking Structure C',
-    status: 'all-clear',
-    statusText: 'All Clear',
-    activeGuards: 2,
-    guards: [
-      { id: 3, name: 'David Lee', initials: 'DL' },
-      { id: 6, name: 'Lisa Wang', initials: 'LW' }
-    ],
-    shiftProgress: 80,
-    shiftStatusText: 'Shift ending in 1h',
-    taskMetrics: {
-      patrolsCompleted: 4,
-      patrolsTotal: 5,
-      reportsDrafted: 2
-    }
-  },
-  {
-    id: 4,
-    name: 'Manufacturing Wing D',
-    status: 'all-clear',
-    statusText: 'All Clear',
-    activeGuards: 4,
-    guards: [
-      { id: 8, name: 'Kevin Torres', initials: 'KT' },
-      { id: 9, name: 'Nina Patel', initials: 'NP' },
-      { id: 10, name: 'James Kim', initials: 'JK' },
-      { id: 11, name: 'Emma Wilson', initials: 'EW' }
-    ],
-    shiftProgress: 60,
-    shiftStatusText: 'Shift ending in 1.5h',
-    taskMetrics: {
-      patrolsCompleted: 3,
-      patrolsTotal: 4,
-      reportsDrafted: 1
-    }
-  },
-  {
-    id: 5,
-    name: 'East Campus Security',
-    status: 'all-clear',
-    statusText: 'All Clear',
-    activeGuards: 3,
-    guards: [
-      { id: 12, name: 'Carlos Rivera', initials: 'CR' },
-      { id: 13, name: 'Amy Zhang', initials: 'AZ' },
-      { id: 14, name: 'Tom Anderson', initials: 'TA' }
-    ],
-    shiftProgress: 40,
-    shiftStatusText: 'Shift ending in 3h',
-    taskMetrics: {
-      patrolsCompleted: 1,
-      patrolsTotal: 2,
-      reportsDrafted: 0
-    }
-  },
-  {
-    id: 6,
-    name: 'West Perimeter',
-    status: 'all-clear',
-    statusText: 'All Clear',
-    activeGuards: 2,
-    guards: [
-      { id: 15, name: 'Rachel Green', initials: 'RG' },
-      { id: 16, name: 'Mike Ross', initials: 'MR' }
-    ],
-    shiftProgress: 90,
-    shiftStatusText: 'Shift ending in 0.5h',
-    taskMetrics: {
-      patrolsCompleted: 5,
-      patrolsTotal: 5,
-      reportsDrafted: 3
-    }
-  }
-];
 
 const initialActivities: ActivityEvent[] = [
   {
@@ -207,17 +89,71 @@ export function LiveOperations() {
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteCard | null>(null);
   const [showLogsDrawer, setShowLogsDrawer] = useState(false);
-  const [sites, setSites] = useState<SiteCard[]>(siteData);
+  
+  // Generate dynamic site data from today's scheduled shifts
+  const generateSiteDataFromSchedule = (): SiteCard[] => {
+    const todaysShifts = getTodaysScheduledShifts();
+    
+    // Group shifts by location (site)
+    const siteMap = new Map<string, typeof todaysShifts>();
+    
+    todaysShifts.forEach(shift => {
+      const siteName = shift.location;
+      if (!siteMap.has(siteName)) {
+        siteMap.set(siteName, []);
+      }
+      siteMap.get(siteName)!.push(shift);
+    });
+    
+    // Convert to SiteCard format
+    const dynamicSites: SiteCard[] = [];
+    let siteId = 1;
+    
+    siteMap.forEach((shifts, siteName) => {
+      // Helper function to get initials
+      const getInitials = (name: string): string => {
+        return name.split(' ').map(n => n[0]).join('').toUpperCase();
+      };
+      
+      // Calculate shift progress (simulated - in production would be based on actual time)
+      const now = new Date();
+      const currentHour = now.getHours();
+      const shiftProgress = Math.min(Math.max(((currentHour - 8) / 8) * 100, 0), 100);
+      
+      dynamicSites.push({
+        id: siteId++,
+        name: siteName,
+        status: 'all-clear',
+        statusText: 'All Clear',
+        activeGuards: shifts.length,
+        guards: shifts.map(shift => ({
+          id: shift.guardId,
+          name: shift.guardName,
+          initials: getInitials(shift.guardName)
+        })),
+        shiftProgress: Math.round(shiftProgress),
+        shiftStatusText: shiftProgress > 80 ? 'Shift ending soon' : 'Shift in progress',
+        taskMetrics: {
+          patrolsCompleted: Math.floor(Math.random() * 4) + 1,
+          patrolsTotal: 5,
+          reportsDrafted: Math.floor(Math.random() * 2)
+        }
+      });
+    });
+    
+    return dynamicSites;
+  };
+  
+  const [sites, setSites] = useState<SiteCard[]>(() => generateSiteDataFromSchedule());
 
-  // Get active guards count from global state
-  // In production: This would query the database for status = 'On Shift'
-  const displayActiveGuardsCount = getActiveGuardCount();
+  // Get active guards count from today's schedule
+  const displayActiveGuardsCount = getTodaysScheduledShifts().length;
 
   // Calculate shift coverage rate (shift fulfillment)
-  // In production: This would query scheduled shifts vs active shifts
-  const scheduledShiftCount = 8; // Total shifts scheduled for this timeframe
-  const coverageRate = Math.round((displayActiveGuardsCount / scheduledShiftCount) * 100);
-  const missingShiftsCount = scheduledShiftCount - displayActiveGuardsCount;
+  const todaysShiftsCount = getTodaysScheduledShifts().length;
+  const scheduledShiftCount = todaysShiftsCount; // Total shifts scheduled for today
+  const coverageRate = scheduledShiftCount > 0 ? 100 : 0; // If shifts exist, they're all filled
+  const missingShiftsCount = 0; // No missing shifts since we're showing only scheduled ones
   
   // Dynamic coverage label and styling
   const coverageLabel = coverageRate === 100 
@@ -398,7 +334,7 @@ export function LiveOperations() {
         <div className="site-health-grid-container">
           <div className="site-grid-header">
             <h2 className="site-grid-title">Site Health Status</h2>
-            <div className="site-grid-count">{siteData.length} Active Sites</div>
+            <div className="site-grid-count">{sites.length} Active Sites</div>
           </div>
 
           <div className="site-health-grid">

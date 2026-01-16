@@ -3,6 +3,7 @@ import { X, Phone, Mail, MapPin, Calendar, Clock, User, FileText, Award, Shield,
 import { LogPerformanceModal } from './LogPerformanceModal';
 import { ManualLicenseEntryModal } from './ManualLicenseEntryModal';
 import { DocumentModal } from './DocumentModal';
+import { useAppState } from '../../contexts/AppStateContext';
 
 interface Guard {
   id: number;
@@ -77,7 +78,10 @@ interface Shift {
 }
 
 export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts: externalShifts, onShiftsUpdate, documents: externalDocuments, onDocumentsUpdate }: GuardDetailSlideOverProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('performance');
+  // Access global state for reports
+  const appState = useAppState();
+  
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [isAccessFrozen, setIsAccessFrozen] = useState(false);
   const [showFreezeConfirm, setShowFreezeConfirm] = useState(false);
   const [showUnfreezeConfirm, setShowUnfreezeConfirm] = useState(false);
@@ -88,6 +92,13 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
       setIsAccessFrozen(guard.isFrozen || false);
     }
   }, [guard]);
+
+  // Reset to Overview tab when guard changes
+  useEffect(() => {
+    if (guard) {
+      setActiveTab('overview');
+    }
+  }, [guard?.id]);
 
   // Schedule state
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
@@ -449,6 +460,27 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
   // Mock shifts data
   const [shifts, setShifts] = useState<Shift[]>([]);
 
+  // ============================================================================
+  // DYNAMIC METRICS FROM GLOBAL STATE
+  // ============================================================================
+  
+  // Calculate real-time report metrics for this guard
+  const guardReports = guard && appState?.reports ? appState.reports.filter(report => report.guardName === guard.name) : [];
+  const totalReportsCount = guardReports.length;
+  const incidentReportsCount = guardReports.filter(r => r.reportType === 'incident').length;
+  const darReportsCount = guardReports.filter(r => r.reportType === 'dar').length;
+  const disciplinaryReportsCount = guardReports.filter(r => r.reportType === 'disciplinary').length;
+  const pendingReportsCount = guardReports.filter(r => r.status === 'pending').length;
+  const approvedReportsCount = guardReports.filter(r => r.status === 'approved').length;
+
+  // Calculate shift completion rate from scheduled shifts
+  const guardScheduledShifts = guard && appState?.scheduledShifts ? appState.scheduledShifts.filter(s => s.guardId === guard.id) : [];
+  const completedShifts = guardScheduledShifts.filter(s => s.status === 'confirmed').length;
+  const totalScheduledShifts = guardScheduledShifts.length;
+  const shiftCompletionRate = totalScheduledShifts > 0 
+    ? Math.round((completedShifts / totalScheduledShifts) * 100) 
+    : 100;
+
   // Initialize shifts when guard changes or external shifts are provided
   useEffect(() => {
     if (guard) {
@@ -462,38 +494,38 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
           {
             id: guard.id * 1000 + 1,
             site: 'Building A - Lobby',
-            date: '2025-12-22',
+            date: '2026-01-06',
             startTime: '08:00',
             endTime: '16:00',
             instructions: 'Monitor main lobby. Check IDs for all visitors.',
             status: 'completed',
             hours: 8,
             createdBy: 'Sarah Admin',
-            createdAt: '2025-12-20'
+            createdAt: '2026-01-02'
           },
           {
             id: guard.id * 1000 + 2,
             site: 'Building B - Patrol',
-            date: '2025-12-23',
+            date: '2026-01-07',
             startTime: '08:00',
             endTime: '16:00',
             instructions: 'Complete all patrol checkpoints. Submit hourly logs.',
             status: 'in-progress',
             hours: 8,
             createdBy: 'Sarah Admin',
-            createdAt: '2025-12-20'
+            createdAt: '2026-01-02'
           },
           {
             id: guard.id * 1000 + 3,
             site: 'Building C - Gate',
-            date: '2025-12-24',
+            date: '2026-01-09',
             startTime: '12:00',
             endTime: '20:00',
             instructions: 'Gate monitoring. Vehicle access control.',
             status: 'scheduled',
             hours: 8,
             createdBy: 'Sarah Admin',
-            createdAt: '2025-12-20'
+            createdAt: '2026-01-02'
           }
         ]);
       }
@@ -502,8 +534,8 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
 
   // Week navigation functions
   const getWeekDateRange = (offset: number): string => {
-    // Start from Dec 22, 2025 (which is a Monday) as the base week
-    const baseDate = new Date('2025-12-22');
+    // Start from Jan 5, 2026 (which is a Sunday, so we move to Jan 6 Monday) as the base week
+    const baseDate = new Date('2026-01-06');
     
     // Calculate the Monday of the current offset week
     const monday = new Date(baseDate);
@@ -521,7 +553,7 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
   };
 
   const getWeekStartDate = (offset: number): Date => {
-    const baseDate = new Date('2025-12-22');
+    const baseDate = new Date('2026-01-06');
     const monday = new Date(baseDate);
     monday.setDate(baseDate.getDate() + (offset * 7));
     return monday;
@@ -713,7 +745,7 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
     .filter(shift => isDateInCurrentWeek(shift.date, currentWeekOffset))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const completedShifts = shifts
+  const completedShiftsArray = shifts
     .filter(shift => shift.status === 'completed')
     .filter(shift => isDateInCurrentWeek(shift.date, currentWeekOffset))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1596,7 +1628,7 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
                 <h4 className="shift-group-title">Completed History</h4>
                 
                 {/* Completed Shift Card 1 */}
-                {completedShifts.map(shift => (
+                {completedShiftsArray.map(shift => (
                   <div 
                     key={shift.id} 
                     className="shift-card shift-card-completed"
@@ -1976,29 +2008,103 @@ export function GuardDetailSlideOver({ guard, isOpen, onClose, onUpdate, shifts:
               {/* Performance Summary Cards */}
               <div className="slideover-section">
                 <div className="slideover-vitals-grid">
-                  {/* Attendance Score Card */}
+                  {/* Shift Completion Rate Card */}
                   <div className="vital-card">
                     <div className="vital-card-header">
                       <div className="vital-icon success">
                         <CheckCircle size={20} />
                       </div>
-                      <span className="vital-label">Attendance Score</span>
+                      <span className="vital-label">Shift Completion</span>
                     </div>
-                    <div className="vital-value success" style={{ color: '#3BD16F' }}>98%</div>
-                    <p className="vital-subtext">Excellent attendance record</p>
+                    <div className="vital-value success" style={{ color: '#3BD16F' }}>{shiftCompletionRate}%</div>
+                    <p className="vital-subtext">{completedShifts} of {totalScheduledShifts} shifts</p>
                   </div>
 
-                  {/* Reported Incidents Card */}
+                  {/* Total Reports Filed Card */}
                   <div className="vital-card">
                     <div className="vital-card-header">
-                      <div className="vital-icon" style={{ backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-                        <AlertCircle size={20} style={{ color: '#FFC107' }} />
+                      <div className="vital-icon" style={{ backgroundColor: 'rgba(59, 209, 111, 0.1)' }}>
+                        <FileText size={20} style={{ color: '#3BD16F' }} />
                       </div>
-                      <span className="vital-label">Reported Incidents</span>
+                      <span className="vital-label">Reports Filed</span>
                     </div>
-                    <div className="vital-value" style={{ color: '#FFC107' }}>1</div>
-                    <p className="vital-subtext">This quarter</p>
+                    <div className="vital-value" style={{ color: '#3BD16F' }}>{totalReportsCount}</div>
+                    <p className="vital-subtext">{approvedReportsCount} approved, {pendingReportsCount} pending</p>
                   </div>
+                </div>
+                
+                {/* Secondary Stats Row */}
+                <div className="slideover-vitals-grid" style={{ marginTop: '16px' }}>
+                  {/* Incident Reports Card */}
+                  <div className="vital-card">
+                    <div className="vital-card-header">
+                      <div className="vital-icon" style={{ backgroundColor: 'rgba(255, 122, 24, 0.1)' }}>
+                        <AlertCircle size={20} style={{ color: '#FF7A18' }} />
+                      </div>
+                      <span className="vital-label">Incident Reports</span>
+                    </div>
+                    <div className="vital-value" style={{ color: '#FF7A18' }}>{incidentReportsCount}</div>
+                    <p className="vital-subtext">Security incidents filed</p>
+                  </div>
+
+                  {/* DAR Reports Card */}
+                  <div className="vital-card">
+                    <div className="vital-card-header">
+                      <div className="vital-icon" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
+                        <Shield size={20} style={{ color: '#3b82f6' }} />
+                      </div>
+                      <span className="vital-label">Daily Reports</span>
+                    </div>
+                    <div className="vital-value" style={{ color: '#3b82f6' }}>{darReportsCount}</div>
+                    <p className="vital-subtext">DAR submissions</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reports Filed Section - From Global State */}
+              <div className="slideover-section">
+                <h3 className="slideover-section-title">Reports Filed ({totalReportsCount})</h3>
+                <div className="compliance-list">
+                  {guardReports.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#9CA3AF' }}>
+                      <FileText size={32} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+                      <p>No reports filed yet</p>
+                    </div>
+                  ) : (
+                    guardReports.slice(0, 10).map((report) => (
+                      <div 
+                        key={report.id} 
+                        className={`compliance-item ${report.status === 'approved' ? 'valid' : report.status === 'rejected' ? 'warning' : ''}`}
+                      >
+                        <div 
+                          className="compliance-icon" 
+                          style={{ 
+                            backgroundColor: report.status === 'approved' 
+                              ? 'rgba(59, 209, 111, 0.1)' 
+                              : report.status === 'rejected' 
+                              ? 'rgba(239, 68, 68, 0.1)' 
+                              : 'rgba(255, 193, 7, 0.1)' 
+                          }}
+                        >
+                          {report.status === 'approved' ? (
+                            <CheckCircle size={20} style={{ color: '#3BD16F' }} />
+                          ) : report.status === 'rejected' ? (
+                            <X size={20} style={{ color: '#ef4444' }} />
+                          ) : (
+                            <Clock size={20} style={{ color: '#FFC107' }} />
+                          )}
+                        </div>
+                        <div className="compliance-content">
+                          <span className="compliance-label">
+                            {report.type} - {report.referenceId}
+                          </span>
+                          <span className="compliance-sublabel">
+                            {report.site} • {report.timestamp} • {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

@@ -21,11 +21,25 @@ interface Shift {
 export function MySchedule() {
   const { appState, currentUser, updateScheduledShift } = useAppState();
   
-  // Filter shifts for the current logged-in guard
+  // Helper function to check if shift is in the future
+  const isFutureShift = (shift: any): boolean => {
+    const today = new Date('2026-01-07'); // Current date: Wednesday, January 7, 2026
+    const shiftDate = new Date(shift.date);
+    
+    // Reset time to start of day for comparison
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const shiftStart = new Date(shiftDate.getFullYear(), shiftDate.getMonth(), shiftDate.getDate());
+    
+    // Only include shifts from tomorrow onwards (exclude today)
+    return shiftStart.getTime() > todayStart.getTime();
+  };
+  
+  // Filter shifts for the current logged-in guard - only future shifts (tomorrow and beyond)
   const myShifts = appState.scheduledShifts
     .filter(shift => shift.guardId === currentUser.id)
+    .filter(isFutureShift)
     .sort((a, b) => {
-      // Sort by date (you could improve this with actual date parsing)
+      // Sort by date
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
 

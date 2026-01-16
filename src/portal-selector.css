@@ -109,12 +109,22 @@
   color: var(--accent);
 }
 
+.portal-card-icon.admin {
+  background: rgba(255, 122, 24, 0.15);
+  color: var(--accent);
+}
+
 .portal-card-icon.guard {
   background: rgba(59, 209, 111, 0.15);
   color: var(--primary);
 }
 
 .portal-card-icon.company-admin {
+  background: rgba(147, 112, 219, 0.15);
+  color: #9370DB;
+}
+
+.portal-card-icon.agent {
   background: rgba(147, 112, 219, 0.15);
   color: #9370DB;
 }
@@ -169,6 +179,35 @@
   font-size: 13px;
   padding-top: var(--spacing-4);
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.reset-data-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-data-btn:hover {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.5);
+  transform: translateY(-1px);
+}
+
+.reset-data-btn:active {
+  transform: translateY(0);
 }
 
 .portal-unavailable {

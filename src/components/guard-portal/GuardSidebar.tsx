@@ -124,23 +124,27 @@ export function GuardSidebar({ currentPage, onNavigate, collapsed, open, onClose
   const sidebarContent = (
     <>
       <div className="sidebar-header">
-        <div className="sidebar-logo">
-          {(!collapsed || isMobile) && <span className="logo-text">Guard Up</span>}
-          {collapsed && !isMobile && <span className="logo-icon">GU</span>}
+        <div className="sidebar-header-content">
+          <div className="sidebar-logo">
+            <Shield size={24} className="logo-icon" />
+            {!collapsed && <span className="logo-text">Guard Up</span>}
+            {collapsed && <span className="logo-text-collapsed">GU</span>}
+          </div>
+          {isMobile && (
+            <button className="sidebar-close" onClick={onClose} aria-label="Close sidebar">
+              <X size={20} />
+            </button>
+          )}
         </div>
-        {isMobile && (
-          <button className="close-button" onClick={onClose} aria-label="Close menu">
-            <X size={20} />
-          </button>
-        )}
-        {!isMobile && !collapsed && (
+        {/* Desktop Collapse Arrow - only show when sidebar is EXPANDED */}
+        {!isMobile && !collapsed && onToggle && (
           <button 
-            className="close-button collapse-button" 
-            onClick={onClose} 
+            className="sidebar-collapse-arrow"
+            onClick={onToggle}
             aria-label="Collapse sidebar"
             title="Collapse sidebar"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} />
           </button>
         )}
       </div>

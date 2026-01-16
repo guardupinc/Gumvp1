@@ -1,14 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Users, Calendar as CalendarIcon, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, FileText, Banknote, Shield, Check, Eye, MoreHorizontal } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Users, Calendar as CalendarIcon, AlertTriangle, FileText, Check, Eye, MoreHorizontal, Banknote, Shield } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
 import { KPICard } from '../ui/KPICard';
+import { ImportantAlertsCard } from '../ui/ImportantAlertsCard';
+import { AlertsModal, Alert } from '../ui/AlertsModal';
 import { Table, Column } from '../ui/Table';
 import { ShiftCalendar } from '../ui/ShiftCalendar';
 import { AddShiftModal, ShiftFormData } from '../modals/AddShiftModal';
-import { QuickActionModal } from '../modals/QuickActionModal';
+import { AddNewGuardModal } from '../ui/AddNewGuardModal';
+import { SelectReportTypeModal } from '../ui/SelectReportTypeModal';
+import { CreateReportModal } from '../ui/CreateReportModal';
 import { ReportDetailsModal } from '../ui/ReportDetailsModal';
+import { RequestChangesModal } from '../modals/RequestChangesModal';
+import { QuickActionsModal } from '../modals/QuickActionsModal';
 import { DailyOperationsTimeline, generateTodayOperations } from '../widgets/DailyOperationsTimeline';
+import { useAppState } from '../../contexts/AppStateContext';
+import { useGuards } from '../../contexts/GuardsContext';
+import { toast } from 'sonner';
 import '../../modals.css';
 
 interface Report {
@@ -28,6 +37,11 @@ interface DashboardProps {
   reports?: Report[];
   onNavigateToPendingReports?: () => void;
   onNavigateToOperations?: () => void;
+  onQuickActionAddGuard?: () => void;
+  onQuickActionCreateShift?: () => void;
+  onQuickActionCreateReport?: () => void;
+  onNavigateToScheduling?: () => void;
+  onReviewAllPendingReports?: () => void;
 }
 
 interface RecentActivity {
@@ -142,7 +156,7 @@ const reportColumns: Column<PendingReport>[] = [
                 className="action-button action-view"
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log('View report:', row.id);
+                  handleViewReport(row.id);
                 }}
                 title="View Details"
               >
@@ -155,9 +169,9 @@ const reportColumns: Column<PendingReport>[] = [
                   className="action-button action-approve"
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Quick approve:', row.id);
+                    handleQuickReview(row.id);
                   }}
-                  title="Approve"
+                  title="Review / Approve"
                 >
                   <Check size={16} />
                 </button>
@@ -165,7 +179,7 @@ const reportColumns: Column<PendingReport>[] = [
                   className="action-button action-view"
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('View report:', row.id);
+                    handleViewReport(row.id);
                   }}
                   title="View Details"
                 >
@@ -233,17 +247,27 @@ const generateShiftData = () => {
   return shifts;
 };
 
-export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigateToOperations }: DashboardProps) {
+export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigateToOperations, onQuickActionAddGuard, onQuickActionCreateShift, onQuickActionCreateReport, onNavigateToScheduling, onReviewAllPendingReports }: DashboardProps) {
+  const { addReport, currentUser, approveReport, rejectReport } = useAppState();
+  const { addGuard } = useGuards();
   const shifts = generateShiftData();
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
   const [addShiftPrefilledDate, setAddShiftPrefilledDate] = useState<Date | undefined>();
   const [addShiftPrefilledTimeSlot, setAddShiftPrefilledTimeSlot] = useState<string | undefined>();
   const todayOperations = generateTodayOperations();
   
+  // Modal States
+  const [isQuickActionsModalOpen, setQuickActionsModalOpen] = useState(false);
   const [isAddShiftModalOpen, setAddShiftModalOpen] = useState(false);
-  const [isQuickActionModalOpen, setQuickActionModalOpen] = useState(false);
+  const [isAddGuardModalOpen, setAddGuardModalOpen] = useState(false);
+  const [isSelectReportTypeModalOpen, setSelectReportTypeModalOpen] = useState(false);
+  const [isCreateReportModalOpen, setCreateReportModalOpen] = useState(false);
+  const [createReportType, setCreateReportType] = useState<'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon'>('incident');
   const [isReportDetailsModalOpen, setReportDetailsModalOpen] = useState(false);
-
+  const [isRequestChangesModalOpen, setRequestChangesModalOpen] = useState(false);
+  const [isAlertsModalOpen, setAlertsModalOpen] = useState(false);
+  const [isViewOnlyMode, setIsViewOnlyMode] = useState(false); // Track if modal is read-only (Eye) or review mode (Checkmark)
+  
   // Filter only pending reports
   const pendingReports = reports.filter(r => r.status === 'pending');
 
@@ -273,6 +297,56 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
   // Calculate pending reports count from live data
   const pendingCount = pendingReports.length;
 
+  // Important Alerts data
+  const alerts: Alert[] = [
+    {
+      id: 1,
+      type: 'financial',
+      icon: <Banknote size={20} />,
+      title: 'Overtime Risk Detected',
+      description: '3 guards approaching 40 hours this week',
+      timestamp: '2 hours ago',
+      route: 'scheduling',
+      filterType: 'overtime-risk'
+    },
+    {
+      id: 2,
+      type: 'critical',
+      icon: <AlertTriangle size={20} />,
+      title: 'License Expiring Soon',
+      description: "John Smith's Guard Card expires in 3 days",
+      timestamp: '4 hours ago',
+      route: 'guards',
+      filterType: 'expiring-licenses'
+    },
+    {
+      id: 3,
+      type: 'operational',
+      icon: <Shield size={20} />,
+      title: 'Shift Coverage Needed',
+      description: '2 shifts tomorrow are unassigned',
+      timestamp: '5 hours ago',
+      route: 'scheduling',
+      filterType: 'unassigned-shifts'
+    },
+  ];
+
+  // Handle alert click - navigate to appropriate page
+  const handleAlertClick = (alert: Alert) => {
+    console.log('Alert clicked:', alert);
+    toast.info(`Navigating to ${alert.route}...`);
+    
+    // Route based on alert type
+    if (alert.route === 'scheduling') {
+      onNavigateToScheduling?.();
+      // In a real app, you would also set filters here
+    } else if (alert.route === 'guards') {
+      // Navigate to workforce management/guards page
+      // For MVP, just show a toast
+      toast.info('Guard filtering would be applied here');
+    }
+  };
+
   const handleShiftClick = (shift: any) => {
     console.log('Shift clicked:', shift);
   };
@@ -285,6 +359,21 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
 
   const handleReviewReport = (reportId: number) => {
     setSelectedReportId(reportId);
+    setIsViewOnlyMode(false); // Default to review mode (with approve/reject buttons)
+    setReportDetailsModalOpen(true);
+  };
+
+  // Handler for Eye icon - View report in read-only mode
+  const handleViewReport = (reportId: number) => {
+    setSelectedReportId(reportId);
+    setIsViewOnlyMode(true); // View-only mode (no approve/reject buttons)
+    setReportDetailsModalOpen(true);
+  };
+
+  // Handler for Checkmark icon - Review/Approve report
+  const handleQuickReview = (reportId: number) => {
+    setSelectedReportId(reportId);
+    setIsViewOnlyMode(false); // Review mode (with approve/reject buttons)
     setReportDetailsModalOpen(true);
   };
 
@@ -317,24 +406,85 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
     // Here you would typically send this to your backend
   };
 
-  const handleQuickAction = (actionId: string) => {
-    console.log('Quick action selected:', actionId);
-    if (actionId === 'add-shift') {
-      setAddShiftModalOpen(true);
-    } else if (actionId === 'review-reports') {
-      setReportDetailsModalOpen(true);
+  const handleApproveReportFromModal = () => {
+    if (!selectedReport) return;
+    
+    // Call canonical approval function from context
+    approveReport(selectedReport.id);
+    
+    // Show success toast
+    toast.success(`✓ Report Approved & Filed to ${selectedReport.guardName}'s Personnel Record.`);
+    
+    // Close modal
+    setReportDetailsModalOpen(false);
+    setSelectedReportId(null);
+  };
+
+  const handleRejectReportFromModal = () => {
+    if (!selectedReport) return;
+    
+    // COMPLIANCE: Open Request Changes modal instead of direct rejection
+    setReportDetailsModalOpen(false);
+    setRequestChangesModalOpen(true);
+  };
+
+  const handleConfirmRequestChanges = (rejectionReason: string, notes?: string, notifyGuard?: boolean) => {
+    if (!selectedReport) return;
+    
+    // COMPLIANCE: Call canonical rejection (status → "rejected" = "Changes Requested")
+    rejectReport(selectedReport.id, rejectionReason);
+    
+    // Show success toast
+    toast.success('Changes requested. Report returned to author.');
+    
+    // Close modals and reset state
+    setRequestChangesModalOpen(false);
+    setSelectedReportId(null);
+  };
+  
+  // Handle Add Guard
+  const handleAddGuard = (guardData: any) => {
+    const newGuard = {
+      id: Date.now(),
+      name: `${guardData.firstName} ${guardData.lastName}`,
+      status: 'Available',
+      badge: guardData.badgeId,
+      licenses: [{
+        type: 'Guard Card',
+        number: guardData.guardCardNumber,
+        expiry: guardData.expiryDate,
+        status: 'valid' as const
+      }],
+      contact: {
+        email: guardData.email,
+        phone: guardData.phone
+      },
+      imageUrl: guardData.imageUrl
+    };
+    
+    addGuard(newGuard);
+    toast.success(`${newGuard.name} has been added to the workforce`);
+    setAddGuardModalOpen(false);
+  };
+  
+  // Handle Report Type Selection
+  const handleSelectReportType = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => {
+    setCreateReportType(type);
+    setSelectReportTypeModalOpen(false);
+    setCreateReportModalOpen(true);
+  };
+  
+  // Handle Create Report
+  const handleCreateReport = async (reportData: any) => {
+    try {
+      // Here you would call your API to create the report
+      console.log('Creating report:', reportData);
+      toast.success('Report submitted successfully!');
+      setCreateReportModalOpen(false);
+    } catch (error) {
+      console.error('Error creating report:', error);
+      toast.error('Failed to create report');
     }
-    // Add other quick action handlers here
-  };
-
-  const handleApproveReport = (reportId: number, comments: string) => {
-    console.log('Approved report:', reportId, 'Comments:', comments);
-    // Here you would typically send this to your backend
-  };
-
-  const handleRejectReport = (reportId: number, comments: string) => {
-    console.log('Rejected report:', reportId, 'Comments:', comments);
-    // Here you would typically send this to your backend
   };
 
   return (
@@ -344,7 +494,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
         description="Overview of your security operations and key metrics"
         primaryAction={{
           label: 'Quick Action',
-          onClick: () => setQuickActionModalOpen(true),
+          onClick: () => setQuickActionsModalOpen(true),
           icon: <Plus size={16} />,
         }}
       />
@@ -362,6 +512,7 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
           value="12"
           change={{ value: '2 pending coverage', trend: 'neutral' }}
           icon={<CalendarIcon size={20} />}
+          onClick={onNavigateToScheduling}
         />
         <KPICard
           title="Pending Reports"
@@ -370,11 +521,11 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
           icon={<FileText size={20} />}
           onClick={onNavigateToPendingReports}
         />
-        <KPICard
-          title="Compliance Rate"
-          value="98%"
-          change={{ value: '+2% this month', trend: 'up' }}
-          icon={<CheckCircle size={20} />}
+        <ImportantAlertsCard 
+          maxAlerts={3}
+          onViewAll={() => setAlertsModalOpen(true)}
+          onAlertClick={handleAlertClick}
+          alerts={alerts}
         />
       </div>
 
@@ -387,8 +538,18 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
             setAddShiftModalOpen(true);
           }}
           onViewFullSchedule={() => {
-            console.log('View full schedule clicked');
-            onNavigateToOperations?.();
+            console.log('View full schedule clicked - navigating to Scheduling tab');
+            // Close any open modals
+            setAddShiftModalOpen(false);
+            setAddGuardModalOpen(false);
+            setQuickActionsModalOpen(false);
+            setReportDetailsModalOpen(false);
+            setRequestChangesModalOpen(false);
+            setSelectReportTypeModalOpen(false);
+            setCreateReportModalOpen(false);
+            setAlertsModalOpen(false);
+            // Navigate to Scheduling tab
+            onNavigateToScheduling?.();
           }}
         />
       </div>
@@ -400,7 +561,17 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
             <FileText size={20} className="text-accent" />
             <h3>Reports Pending Review</h3>
           </div>
-          <button className="button-primary" onClick={() => setReportDetailsModalOpen(true)}>
+          <button 
+            className="button-primary" 
+            onClick={() => {
+              if (pendingCount === 0) {
+                toast.info('No reports pending review.');
+              } else {
+                onReviewAllPendingReports?.();
+              }
+            }}
+            disabled={pendingCount === 0}
+          >
             Review All
           </button>
         </div>
@@ -421,46 +592,16 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
             <Table columns={activityColumns} data={recentActivities} />
           </Card>
         </div>
-
-        <div className="dashboard-side-column">
-          <Card className="alerts-card">
-            <div className="card-header">
-              <h3>Important Alerts</h3>
-            </div>
-            <div className="alerts-list">
-              {/* Card 1: Financial Risk - Overtime */}
-              <div className="alert-item alert-financial">
-                <Banknote size={20} />
-                <div className="alert-content">
-                  <p className="alert-title">Overtime Risk Detected</p>
-                  <p className="alert-description">3 guards are approaching 40 hours this week.</p>
-                  <button className="alert-link">View Roster</button>
-                </div>
-              </div>
-
-              {/* Card 2: Compliance - License Expiring */}
-              <div className="alert-item alert-critical">
-                <AlertTriangle size={20} />
-                <div className="alert-content">
-                  <p className="alert-title">License Expiring Soon</p>
-                  <p className="alert-description">John Smith's Guard Card expires in 3 days.</p>
-                </div>
-              </div>
-
-              {/* Card 3: Operations - Coverage */}
-              <div className="alert-item alert-operational">
-                <Shield size={20} />
-                <div className="alert-content">
-                  <p className="alert-title">Shift Coverage Needed</p>
-                  <p className="alert-description">2 shifts tomorrow are unassigned.</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
       </div>
 
       {/* Modals */}
+      <QuickActionsModal 
+        isOpen={isQuickActionsModalOpen} 
+        onClose={() => setQuickActionsModalOpen(false)} 
+        onAddGuard={onQuickActionAddGuard || (() => setAddGuardModalOpen(true))}
+        onCreateShift={onQuickActionCreateShift || (() => setAddShiftModalOpen(true))}
+        onCreateReport={onQuickActionCreateReport || (() => setSelectReportTypeModalOpen(true))}
+      />
       <AddShiftModal 
         isOpen={isAddShiftModalOpen} 
         onClose={() => setAddShiftModalOpen(false)} 
@@ -468,21 +609,52 @@ export function Dashboard({ reports = [], onNavigateToPendingReports, onNavigate
         prefilledTimeSlot={addShiftPrefilledTimeSlot}
         onSubmit={handleSubmitShift}
       />
-      <QuickActionModal 
-        isOpen={isQuickActionModalOpen} 
-        onClose={() => setQuickActionModalOpen(false)} 
-        onActionSelect={handleQuickAction} 
+      <AddNewGuardModal 
+        isOpen={isAddGuardModalOpen} 
+        onClose={() => setAddGuardModalOpen(false)} 
+        onSave={handleAddGuard}
+      />
+      <SelectReportTypeModal 
+        isOpen={isSelectReportTypeModalOpen} 
+        onClose={() => setSelectReportTypeModalOpen(false)} 
+        onSelectType={handleSelectReportType}
+      />
+      <CreateReportModal 
+        isOpen={isCreateReportModalOpen} 
+        onClose={() => setCreateReportModalOpen(false)} 
+        reportType={createReportType}
+        officerName={currentUser?.name || 'Admin User'}
+        onSubmit={handleCreateReport}
       />
       <ReportDetailsModal 
         isOpen={isReportDetailsModalOpen} 
-        onClose={() => setReportDetailsModalOpen(false)} 
+        onClose={() => {
+          setReportDetailsModalOpen(false);
+          setSelectedReportId(null);
+          setIsViewOnlyMode(false);
+        }} 
         report={selectedReport}
-        onApprove={handleApproveReport}
-        onReject={handleRejectReport}
+        currentUser={currentUser}
+        onApprove={!isViewOnlyMode && selectedReport?.status === 'pending' ? handleApproveReportFromModal : undefined}
+        onReject={!isViewOnlyMode && selectedReport?.status === 'pending' ? handleRejectReportFromModal : undefined}
         onPrevious={handlePreviousReport}
         onNext={handleNextReport}
         hasPrevious={hasPreviousReport}
         hasNext={hasNextReport}
+      />
+      <AlertsModal 
+        isOpen={isAlertsModalOpen} 
+        onClose={() => setAlertsModalOpen(false)}
+        alerts={alerts}
+        onAlertClick={handleAlertClick}
+      />
+      <RequestChangesModal
+        isOpen={isRequestChangesModalOpen}
+        onClose={() => {
+          setRequestChangesModalOpen(false);
+        }}
+        onConfirm={handleConfirmRequestChanges}
+        reportId={selectedReport?.reportCode}
       />
     </div>
   );

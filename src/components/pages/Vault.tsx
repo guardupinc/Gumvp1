@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Plus, Search, FileText, Award, Receipt, FileSignature, Folder, Download, Eye, MoreVertical, Filter, Wrench, Briefcase, Upload, X } from 'lucide-react';
+import { Plus, Search, FileText, Folder, Wrench, Users, FileCheck, AlertTriangle, ClipboardList, Calendar } from 'lucide-react';
 import { PageHeader } from '../ui/PageHeader';
 import { Card } from '../ui/Card';
-import { Table, Column } from '../ui/Table';
 import { useAppState } from '../../contexts/AppStateContext';
+import { SelectReportTypeModal } from '../ui/SelectReportTypeModal';
+import { FileUploadModal } from '../ui/FileUploadModal';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { toast } from 'sonner';
+import { api } from '../../utils/api';
 
 interface Document {
   id: number | string;
@@ -16,65 +20,279 @@ interface Document {
   status: 'active' | 'expired' | 'pending';
   isNewEntry?: boolean; // Flag for visual highlight
   reportReferenceId?: string; // Link to original report
+  fileUrl?: string; // Storage path for preview
 }
 
-const documentColumns: Column<Document>[] = [
-  {
-    key: 'name',
-    header: 'Document Name',
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <FileText size={16} className="text-accent" />
-        <span>{row.name}</span>
-      </div>
-    ),
-  },
-  {
-    key: 'category',
-    header: 'Category',
-    render: (row) => <span className="table-badge">{row.category}</span>,
-    width: '180px',
-    hideOnMobile: true,
-  },
-  {
-    key: 'uploadedBy',
-    header: 'Uploaded By',
-    render: (row) => row.uploadedBy,
-    width: '150px',
-    hideOnMobile: true,
-  },
-  {
-    key: 'uploadedDate',
-    header: 'Date',
-    render: (row) => <span className="text-muted">{row.uploadedDate}</span>,
-    width: '120px',
-  },
-  {
-    key: 'size',
-    header: 'Size',
-    render: (row) => <span className="text-muted">{row.size}</span>,
-    width: '100px',
-    hideOnMobile: true,
-  },
-  {
-    key: 'status',
-    header: 'Status',
-    render: (row) => <span className={`status-badge ${row.status}`}>{row.status}</span>,
-    width: '100px',
-  },
-];
-
 export function Vault() {
-  const { appState, currentUser, addVaultDocument } = useAppState();
+  const { appState, currentUser, addVaultDocument, reports, addReport } = useAppState();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
-  // Upload modal state
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadForm, setUploadForm] = useState({
-    name: '',
-    category: 'Incident Reports' as 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts' | 'Client Packets'
-  });
+  // Removed expandable group state - using flat list now
+  
+  // NEW: Multi-step upload flow
+  const [isSelectReportTypeModalOpen, setIsSelectReportTypeModalOpen] = useState(false);
+  const [isFileUploadModalOpen, setIsFileUploadModalOpen] = useState(false);
+  const [selectedReportType, setSelectedReportType] = useState<'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon'>('incident');
+  const [generatedReportNumber, setGeneratedReportNumber] = useState('');
+
+  /**
+   * SINGLE FUNCTION: openVaultDocument
+   * Opens a vault document PDF in a new tab
+   * Uses the new /api/vault/open-url endpoint
+   */
+  const openVaultDocument = (doc: Document, event?: React.MouseEvent) => {
+    // Prevent any default behavior that might interfere
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    console.log("=== [VaultOpen] Starting document open ===");
+    console.log("[VaultOpen] Document ID:", doc.id);
+    console.log("[VaultOpen] Document Name:", doc.name);
+    console.log("[VaultOpen] Document Category:", doc.category);
+    console.log("[VaultOpen] Report Reference ID:", doc.reportReferenceId);
+    
+    // PDF VERIFICATION: Log report type and code for testing
+    if (doc.reportReferenceId) {
+      const reportCode = doc.reportReferenceId;
+      const prefix = reportCode.split('-')[0];
+      const reportTypeMap: Record<string, string> = {
+        'IR': 'incident',
+        'DAR': 'dar',
+        'MNT': 'maintenance',
+        'DIS': 'disciplinary',
+        'SPO': 'shift_pass_on'
+      };
+      const reportType = reportTypeMap[prefix] || 'other';
+      
+      console.log('━'.repeat(80));
+      console.log('📄 VAULT PDF OPEN VERIFICATION');
+      console.log('━'.repeat(80));
+      console.log(`🔹 Report Type: ${reportType} (Prefix: ${prefix})`);
+      console.log(`🔹 Report Code: ${reportCode}`);
+      console.log(`🔹 Category: ${doc.category}`);
+      console.log(`🔹 Expected PDF Sections:`);
+      
+      const sections: Record<string, string[]> = {
+        'incident': ['Header', 'Key Facts', 'Narrative', 'Actions Taken', 'Police Response (conditional)', 'Attachments', 'Supervisor Review'],
+        'dar': ['Header', 'Key Facts', 'Narrative', 'Shift Details', 'Equipment Status (conditional)', 'Attachments', 'Supervisor Review'],
+        'maintenance': ['Header', 'Key Facts', 'Narrative', 'Maintenance Details', 'Attachments', 'Supervisor Review'],
+        'disciplinary': ['Header', 'Key Facts', 'Narrative', 'Disciplinary Details', 'Corrective Action (conditional)', 'Attachments', 'Supervisor Review'],
+        'shift_pass_on': ['Header', 'Key Facts', 'Narrative', 'Attachments', 'Supervisor Review'],
+      };
+      
+      (sections[reportType] || sections['shift_pass_on']).forEach(section => {
+        console.log(`   - ${section}`);
+      });
+      console.log('━'.repeat(80));
+      console.log('');
+    }
+
+    // CRITICAL: Open window IMMEDIATELY (synchronously) to avoid pop-up blocker
+    // Using 'about:blank' is more reliable than empty string
+    console.log("[VaultOpen] Opening blank window synchronously...");
+    const newWindow = window.open('about:blank', '_blank');
+    
+    if (!newWindow) {
+      console.error('[VaultOpen] ❌ Pop-up blocked by browser');
+      toast.error('Pop-up blocked. Please allow pop-ups for this site.');
+      return;
+    }
+    
+    // Show loading state in the new window
+    newWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Loading Document...</title>
+          <meta charset="utf-8">
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+              background: #0B1220;
+              color: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+            }
+            .loader {
+              text-align: center;
+            }
+            .spinner {
+              border: 3px solid rgba(255, 255, 255, 0.1);
+              border-top: 3px solid #FF7A18;
+              border-radius: 50%;
+              width: 40px;
+              height: 40px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 20px;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            .title {
+              font-size: 18px;
+              margin-bottom: 10px;
+              font-weight: 500;
+            }
+            .subtitle {
+              color: #8899AA;
+              font-size: 14px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="loader">
+            <div class="spinner"></div>
+            <div class="title">Loading PDF...</div>
+            <div class="subtitle">Please wait</div>
+          </div>
+        </body>
+      </html>
+    `);
+    newWindow.document.close(); // Important: close the document to finish writing
+
+    // Now handle the async part
+    handleAsyncPdfLoad(newWindow, doc);
+  };
+
+  // Separated async function to keep window.open() synchronous
+  const handleAsyncPdfLoad = async (newWindow: Window, doc: Document) => {
+    try {
+      toast.info('Loading document...');
+
+      // Call the new API endpoint using the api client
+      console.log("[VaultOpen] Calling API: /api/vault/open-url");
+      const data = await api.post('/api/vault/open-url', { documentId: doc.id });
+      
+      console.log("[VaultOpen] API Response:", data);
+      
+      if (data.success && data.signedUrl) {
+        console.log('[VaultOpen] ✅ Received signed URL');
+        console.log('[VaultOpen] URL length:', data.signedUrl.length);
+        console.log('[VaultOpen] Redirecting window to PDF...');
+        
+        // Redirect the already-open window to the PDF URL
+        newWindow.location.href = data.signedUrl;
+        
+        console.log('[VaultOpen] ✅ Document opened successfully');
+        toast.success('Document opened');
+      } else {
+        console.error('[VaultOpen] ❌ Invalid API response:', data);
+        
+        // Show error in the window
+        newWindow.document.open();
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Error</title>
+              <meta charset="utf-8">
+              <style>
+                body {
+                  margin: 0;
+                  padding: 40px;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                  background: #0B1220;
+                  color: #fff;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                }
+                .error {
+                  text-align: center;
+                  max-width: 400px;
+                }
+                .title {
+                  font-size: 18px;
+                  margin-bottom: 10px;
+                  color: #EF4444;
+                  font-weight: 500;
+                }
+                .subtitle {
+                  color: #8899AA;
+                  font-size: 14px;
+                  line-height: 1.5;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="error">
+                <div class="title">Unable to open document</div>
+                <div class="subtitle">Please try again or contact support if the problem persists.</div>
+              </div>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+        
+        toast.error("Unable to open document. Please try again.");
+      }
+
+    } catch (error: any) {
+      console.error('[VaultOpen] ❌ Error occurred:', error);
+      console.error('[VaultOpen] Error message:', error.message);
+      console.error('[VaultOpen] Error stack:', error.stack);
+      
+      // Show error in the window
+      newWindow.document.open();
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Error</title>
+            <meta charset="utf-8">
+            <style>
+              body {
+                margin: 0;
+                padding: 40px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                background: #0B1220;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+              }
+              .error {
+                text-align: center;
+                max-width: 400px;
+              }
+              .title {
+                font-size: 18px;
+                margin-bottom: 10px;
+                color: #EF4444;
+                font-weight: 500;
+              }
+              .subtitle {
+                color: #8899AA;
+                font-size: 14px;
+                line-height: 1.5;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="error">
+              <div class="title">Error loading document</div>
+              <div class="subtitle">Please try again or contact support.</div>
+            </div>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+      
+      toast.error('Unable to open document. Please try again.');
+    }
+    
+    console.log("=== [VaultOpen] Completed ===");
+  };
 
   // Helper function to map VaultDocument category to Document type
   const getCategoryType = (category: string): Document['type'] => {
@@ -109,14 +327,6 @@ export function Vault() {
     return `${(kb / (1024 * 1024)).toFixed(1)} GB`;
   };
 
-  // Helper function to generate random file size (1MB - 5MB)
-  const generateRandomSize = (): string => {
-    const minMB = 1.0;
-    const maxMB = 5.0;
-    const randomMB = (Math.random() * (maxMB - minMB) + minMB).toFixed(1);
-    return `${randomMB} MB`;
-  };
-
   // Helper function to format current date
   const formatCurrentDate = (): string => {
     const now = new Date();
@@ -127,32 +337,100 @@ export function Vault() {
     });
   };
 
-  // Handle upload document submission
-  const handleUploadDocument = () => {
-    if (!uploadForm.name.trim()) {
-      return; // Don't upload if name is empty
-    }
+  // Generate report number based on type
+  const generateReportNumber = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon'): string => {
+    const prefix = type === 'incident' ? 'IR' 
+      : type === 'dar' ? 'DAR' 
+      : type === 'maintenance' ? 'MNT' 
+      : type === 'disciplinary' ? 'DIS' 
+      : 'SPO';
+    
+    const year = new Date().getFullYear();
+    const prefixPattern = `${prefix}-${year}-`;
+    
+    // Find all existing reports with this prefix pattern (checking both reportNumber and caseId)
+    const existingNumbers = (appState.reports || [])
+      .filter(r => {
+        const id = r.reportNumber || r.caseId || '';
+        return id.replace('#', '').startsWith(prefixPattern);
+      })
+      .map(r => {
+        const id = (r.reportNumber || r.caseId || '').replace('#', '');
+        const parts = id.split('-');
+        const lastPart = parts[parts.length - 1];
+        return parseInt(lastPart, 10);
+      })
+      .filter(num => !isNaN(num));
+    
+    // Find the maximum number (or default to 0 if none exist)
+    const maxNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+    const nextNumber = maxNum + 1;
+    
+    // Use 6-digit format for report numbers
+    return `${prefix}-${year}-${String(nextNumber).padStart(6, '0')}`;
+  };
 
+  // Handle report type selection
+  const handleSelectReportType = (type: 'incident' | 'dar' | 'maintenance' | 'disciplinary' | 'shift-passon') => {
+    setSelectedReportType(type);
+    const reportNum = generateReportNumber(type);
+    setGeneratedReportNumber(reportNum);
+    setIsSelectReportTypeModalOpen(false);
+    setIsFileUploadModalOpen(true);
+  };
+
+  // Handle file save
+  const handleFileSave = (file: File) => {
+    // Get category based on report type - simplified for MVP
+    const getCategory = (type: string) => {
+      if (type === 'incident') return 'Incident Reports';
+      if (type === 'dar') return 'Daily Reports';
+      if (type === 'maintenance') return 'Maintenance';
+      if (type === 'disciplinary') return 'HR & Internal';
+      if (type === 'shift-passon') return 'Internal Ops';
+      // Default to Compliance for manual uploads
+      return 'Compliance';
+    };
+
+    // Add to vault
     addVaultDocument({
-      name: uploadForm.name,
-      category: uploadForm.category,
+      name: `${generatedReportNumber} - ${file.name}`,
+      category: getCategory(selectedReportType),
       uploadedBy: currentUser.name,
       date: formatCurrentDate(),
-      size: generateRandomSize(),
-      status: 'Active'
+      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      status: 'Active',
+      reportReferenceId: generatedReportNumber
     });
 
-    // Reset form and close modal
-    setUploadForm({
-      name: '',
-      category: 'Incident Reports'
-    });
-    setShowUploadModal(false);
+    // Also create a report entry in the backend
+    const reportTypeLabel = selectedReportType === 'incident' ? 'Incident' 
+      : selectedReportType === 'dar' ? 'DAR' 
+      : selectedReportType === 'maintenance' ? 'Maintenance' 
+      : selectedReportType === 'disciplinary' ? 'Disciplinary' 
+      : 'Shift Pass-On';
+
+    if (addReport) {
+      addReport({
+        type: reportTypeLabel as 'Incident' | 'DAR' | 'Maintenance' | 'Disciplinary' | 'Shift Pass-On',
+        reportNumber: generatedReportNumber,
+        site: 'Uploaded via Vault',
+        location: 'N/A',
+        filedBy: currentUser.name,
+        filedOn: new Date().toISOString(),
+        dateTime: new Date().toISOString(),
+        status: 'approved',
+        description: `Document uploaded: ${file.name}`,
+        hasAttachments: true
+      });
+    }
+
+    setIsFileUploadModalOpen(false);
   };
 
   // Convert VaultDocuments from global state to Document format
   const allDocuments: Document[] = appState.vaultDocuments.map((vaultDoc, index) => ({
-    id: vaultDoc.reportReferenceId || `vault-${vaultDoc.id}-${index}`, // Use reportReferenceId as primary key, fallback to composite
+    id: vaultDoc.id, // Use the unique vault document ID as the key
     name: vaultDoc.name,
     type: getCategoryType(vaultDoc.category),
     category: vaultDoc.category,
@@ -160,7 +438,8 @@ export function Vault() {
     uploadedDate: vaultDoc.date,
     size: vaultDoc.size,
     status: vaultDoc.status.toLowerCase() as 'active' | 'expired' | 'pending',
-    reportReferenceId: vaultDoc.reportReferenceId
+    reportReferenceId: vaultDoc.reportReferenceId,
+    fileUrl: vaultDoc.fileUrl // Storage path for preview
   }));
 
   // Calculate total size dynamically
@@ -175,68 +454,59 @@ export function Vault() {
     switch (categoryId) {
       case 'all':
         return allDocuments.length;
-      case 'reports':
-        // Reports = ONLY Incident Reports OR Daily Reports (NOT Client Packets)
-        return allDocuments.filter(d => 
-          d.category === 'Incident Reports' || d.category === 'Daily Reports'
-        ).length;
-      case 'client_packets':
-        // Client Packets = ONLY Client Packets
-        return allDocuments.filter(d => d.category === 'Client Packets').length;
-      case 'maintenance':
-        // Maintenance = ONLY Maintenance category
+      
+      // MVP SIMPLIFIED CATEGORIES
+      case 'incident_reports':
+        return allDocuments.filter(d => d.category === 'Incident Reports').length;
+      
+      case 'daily_reports':
+        return allDocuments.filter(d => d.category === 'Daily Reports' || d.category === 'Internal Ops').length;
+      
+      case 'maintenance_reports':
         return allDocuments.filter(d => d.category === 'Maintenance').length;
-      case 'licenses':
-        return allDocuments.filter(d => d.category === 'Licenses').length;
-      case 'certifications':
-        return allDocuments.filter(d => d.category === 'Certifications').length;
-      case 'receipts':
-        return allDocuments.filter(d => d.category === 'Receipts').length;
-      case 'contracts':
-        return allDocuments.filter(d => d.category === 'Contracts').length;
+      
+      case 'disciplinary_reports':
+        return allDocuments.filter(d => d.category === 'HR & Internal').length;
+      
+      case 'shift_passon_logs':
+        return allDocuments.filter(d => d.category === 'Internal Ops').length;
+      
+      case 'compliance':
+        return allDocuments.filter(d => 
+          d.category === 'Licenses' || 
+          d.category === 'Certifications' ||
+          d.category === 'Compliance'
+        ).length;
+      
       default:
         return 0;
     }
   };
-
-  const categories = [
-    { id: 'all', label: 'All Documents', icon: Folder, count: getCategoryCount('all') },
-    { id: 'reports', label: 'Reports', icon: FileText, count: getCategoryCount('reports') },
-    { id: 'client_packets', label: 'Client Packets', icon: Briefcase, count: getCategoryCount('client_packets') },
-    { id: 'maintenance', label: 'Maintenance', icon: Wrench, count: getCategoryCount('maintenance') },
-    { id: 'licenses', label: 'Licenses', icon: Award, count: getCategoryCount('licenses') },
-    { id: 'certifications', label: 'Certifications', icon: Award, count: getCategoryCount('certifications') },
-    { id: 'receipts', label: 'Receipts', icon: Receipt, count: getCategoryCount('receipts') },
-    { id: 'contracts', label: 'Contracts', icon: FileSignature, count: getCategoryCount('contracts') },
-  ];
 
   const filteredDocuments = allDocuments.filter((doc) => {
     // Search filter
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          doc.category.toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Category filter with strict equality checks
+    // Category filter - simplified for MVP
     let matchesCategory = false;
     
     if (selectedCategory === 'all') {
       matchesCategory = true;
-    } else if (selectedCategory === 'reports') {
-      // Reports = ONLY Incident Reports OR Daily Reports (NOT Client Packets)
-      matchesCategory = doc.category === 'Incident Reports' || doc.category === 'Daily Reports';
-    } else if (selectedCategory === 'client_packets') {
-      // Client Packets = ONLY Client Packets
-      matchesCategory = doc.category === 'Client Packets';
-    } else if (selectedCategory === 'maintenance') {
-      // Maintenance = ONLY Maintenance category
+    } else if (selectedCategory === 'incident_reports') {
+      matchesCategory = doc.category === 'Incident Reports';
+    } else if (selectedCategory === 'daily_reports') {
+      matchesCategory = doc.category === 'Daily Reports' || doc.category === 'Internal Ops';
+    } else if (selectedCategory === 'maintenance_reports') {
       matchesCategory = doc.category === 'Maintenance';
-    } else if (selectedCategory === 'licenses') {
-      matchesCategory = doc.category === 'Licenses';
-    } else if (selectedCategory === 'certifications') {
-      matchesCategory = doc.category === 'Certifications';
-    } else if (selectedCategory === 'receipts') {
-      matchesCategory = doc.category === 'Receipts';
-    } else if (selectedCategory === 'contracts') {
-      matchesCategory = doc.category === 'Contracts';
+    } else if (selectedCategory === 'disciplinary_reports') {
+      matchesCategory = doc.category === 'HR & Internal';
+    } else if (selectedCategory === 'shift_passon_logs') {
+      matchesCategory = doc.category === 'Internal Ops';
+    } else if (selectedCategory === 'compliance') {
+      matchesCategory = doc.category === 'Licenses' || 
+                       doc.category === 'Certifications' ||
+                       doc.category === 'Compliance';
     }
     
     return matchesSearch && matchesCategory;
@@ -249,7 +519,7 @@ export function Vault() {
         description="Securely store and manage all your documents, reports, and certifications"
         primaryAction={{
           label: 'Upload Document',
-          onClick: () => setShowUploadModal(true),
+          onClick: () => setIsSelectReportTypeModalOpen(true),
           icon: <Plus size={16} />,
         }}
         secondaryAction={{
@@ -264,20 +534,77 @@ export function Vault() {
           <Card className="categories-card">
             <h3 className="categories-title">Categories</h3>
             <div className="categories-list">
-              {categories.map((category) => {
-                const Icon = category.icon;
-                return (
-                  <button
-                    key={category.id}
-                    className={`category-item ${selectedCategory === category.id ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory(category.id)}
-                  >
-                    <Icon size={18} />
-                    <span className="category-label">{category.label}</span>
-                    <span className="category-count">{category.count}</span>
-                  </button>
-                );
-              })}
+              {/* All Documents */}
+              <button
+                className={`category-item ${selectedCategory === 'all' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('all')}
+              >
+                <Folder size={18} />
+                <span className="category-label">All Documents</span>
+                <span className="category-count">{getCategoryCount('all')}</span>
+              </button>
+
+              {/* MVP SIMPLIFIED CATEGORIES - FLAT LIST */}
+              
+              {/* Incident Reports */}
+              <button
+                className={`category-item ${selectedCategory === 'incident_reports' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('incident_reports')}
+              >
+                <AlertTriangle size={18} />
+                <span className="category-label">Incident Reports</span>
+                <span className="category-count">{getCategoryCount('incident_reports')}</span>
+              </button>
+
+              {/* Daily Activity Reports */}
+              <button
+                className={`category-item ${selectedCategory === 'daily_reports' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('daily_reports')}
+              >
+                <ClipboardList size={18} />
+                <span className="category-label">Daily Activity Reports</span>
+                <span className="category-count">{getCategoryCount('daily_reports')}</span>
+              </button>
+
+              {/* Maintenance Reports */}
+              <button
+                className={`category-item ${selectedCategory === 'maintenance_reports' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('maintenance_reports')}
+              >
+                <Wrench size={18} />
+                <span className="category-label">Maintenance Reports</span>
+                <span className="category-count">{getCategoryCount('maintenance_reports')}</span>
+              </button>
+
+              {/* Disciplinary Reports */}
+              <button
+                className={`category-item ${selectedCategory === 'disciplinary_reports' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('disciplinary_reports')}
+              >
+                <Users size={18} />
+                <span className="category-label">Disciplinary Reports</span>
+                <span className="category-count">{getCategoryCount('disciplinary_reports')}</span>
+              </button>
+
+              {/* Shift Pass-On Logs */}
+              <button
+                className={`category-item ${selectedCategory === 'shift_passon_logs' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('shift_passon_logs')}
+              >
+                <Calendar size={18} />
+                <span className="category-label">Shift Pass-On Logs</span>
+                <span className="category-count">{getCategoryCount('shift_passon_logs')}</span>
+              </button>
+
+              {/* Compliance */}
+              <button
+                className={`category-item ${selectedCategory === 'compliance' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('compliance')}
+              >
+                <FileCheck size={18} />
+                <span className="category-label">Compliance</span>
+                <span className="category-count">{getCategoryCount('compliance')}</span>
+              </button>
             </div>
           </Card>
 
@@ -317,64 +644,148 @@ export function Vault() {
           </div>
 
           <Card padding="none">
-            <Table 
-              columns={documentColumns} 
-              data={filteredDocuments}
-              onRowClick={(row) => console.log('View document:', row.id)}
-            />
+            {/* Div-based table with CSS grid layout */}
+            <div className="vault-table-container">
+              {/* Header Row */}
+              <div 
+                className="vault-table-header"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.8fr 0.7fr 0.7fr 0.6fr 0.4fr 0.4fr',
+                  gap: '16px',
+                  padding: '12px 16px',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                <div>Document Name</div>
+                <div className="hide-mobile">Category</div>
+                <div className="hide-mobile">Uploaded By</div>
+                <div>Date</div>
+                <div className="hide-mobile">Size</div>
+                <div>Status</div>
+              </div>
+
+              {/* Document Rows */}
+              <div className="vault-table-body">
+                {filteredDocuments.length === 0 ? (
+                  <div style={{ 
+                    padding: '48px 24px', 
+                    textAlign: 'center',
+                    color: 'var(--text-muted)'
+                  }}>
+                    No documents found
+                  </div>
+                ) : (
+                  filteredDocuments.map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={(e) => openVaultDocument(doc, e)}
+                      onKeyDown={(e) => {
+                        // Keyboard support: Enter or Space
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openVaultDocument(doc);
+                        }
+                      }}
+                      aria-label={`Open document ${doc.name}`}
+                      className={`vault-table-row ${doc.isNewEntry ? 'vault-new-entry' : ''}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.8fr 0.7fr 0.7fr 0.6fr 0.4fr 0.4fr',
+                        gap: '16px',
+                        padding: '16px',
+                        borderBottom: '1px solid var(--border)',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: '1px solid var(--border)',
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease',
+                        position: 'relative',
+                        zIndex: 1,
+                        fontSize: '14px',
+                        fontWeight: 400,
+                        color: 'var(--text-primary)',
+                        fontFamily: 'inherit',
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      {/* Document Name */}
+                      <div 
+                        className="flex items-center gap-2" 
+                        style={{ 
+                          whiteSpace: 'nowrap', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          minWidth: 0
+                        }}
+                      >
+                        <FileText size={16} className="text-accent" style={{ flexShrink: 0 }} />
+                        <span style={{ 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {doc.name}
+                        </span>
+                      </div>
+
+                      {/* Category */}
+                      <div className="hide-mobile">
+                        <span className="table-badge">{doc.category}</span>
+                      </div>
+
+                      {/* Uploaded By */}
+                      <div className="hide-mobile">
+                        {doc.uploadedBy}
+                      </div>
+
+                      {/* Date */}
+                      <div style={{ color: 'var(--text-muted)' }}>
+                        {doc.uploadedDate}
+                      </div>
+
+                      {/* Size */}
+                      <div className="hide-mobile" style={{ color: 'var(--text-muted)' }}>
+                        {doc.size}
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        <span className={`status-badge ${doc.status}`}>{doc.status}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           </Card>
         </div>
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">Upload Document</h3>
-              <button className="modal-close" onClick={() => setShowUploadModal(false)}>
-                <X size={16} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Document Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={uploadForm.name}
-                  onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select
-                  className="form-select"
-                  value={uploadForm.category}
-                  onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value as 'Incident Reports' | 'Daily Reports' | 'Maintenance' | 'Licenses' | 'Certifications' | 'Receipts' | 'Contracts' | 'Client Packets' })}
-                >
-                  <option value="Incident Reports">Incident Reports</option>
-                  <option value="Daily Reports">Daily Reports</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Licenses">Licenses</option>
-                  <option value="Certifications">Certifications</option>
-                  <option value="Receipts">Receipts</option>
-                  <option value="Contracts">Contracts</option>
-                  <option value="Client Packets">Client Packets</option>
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="modal-button" onClick={() => setShowUploadModal(false)}>
-                Cancel
-              </button>
-              <button className="modal-button primary" onClick={handleUploadDocument}>
-                Upload
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Select Report Type Modal */}
+      <SelectReportTypeModal
+        isOpen={isSelectReportTypeModalOpen}
+        onClose={() => setIsSelectReportTypeModalOpen(false)}
+        onSelectType={handleSelectReportType}
+      />
+
+      {/* File Upload Modal */}
+      <FileUploadModal
+        isOpen={isFileUploadModalOpen}
+        onClose={() => setIsFileUploadModalOpen(false)}
+        reportType={selectedReportType}
+        reportNumber={generatedReportNumber}
+        onSave={handleFileSave}
+      />
     </div>
   );
 }
